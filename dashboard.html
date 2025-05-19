@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Jenkins Job Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    a {
+      color: blue;
+    }
+    .section {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+  <h1>Jenkins Job Dashboard</h1>
+
+  <div id="output">Loading...</div>
+
+  <script>
+    fetch('http://localhost:8081/jobdata')
+      .then(response => response.json())
+      .then(data => {
+        const output = document.getElementById('output');
+
+        output.innerHTML = `
+          <div class="section">
+            <h2>${data.displayName} (${data.name})</h2>
+            <p><strong>URL:</strong> <a href="${data.url}" target="_blank">${data.url}</a></p>
+            <p><strong>Buildable:</strong> ${data.buildable ? "Yes" : "No"}</p>
+            <p><strong>Status Color:</strong> ${data.color}</p>
+            <p><strong>Next Build Number:</strong> ${data.nextBuildNumber}</p>
+          </div>
+
+          <div class="section">
+            <h3>Last Builds</h3>
+            <ul>
+              <li><strong>Last Failed Build:</strong> ${data.lastFailedBuild ? `<a href="${data.lastFailedBuild.url}" target="_blank">#${data.lastFailedBuild.number}</a>` : "None"}</li>
+              <li><strong>Last Stable Build:</strong> ${data.lastStableBuild ? `<a href="${data.lastStableBuild.url}" target="_blank">#${data.lastStableBuild.number}</a>` : "None"}</li>
+              <li><strong>Last Successful Build:</strong> ${data.lastSuccessfulBuild ? `<a href="${data.lastSuccessfulBuild.url}" target="_blank">#${data.lastSuccessfulBuild.number}</a>` : "None"}</li>
+            </ul>
+          </div>
+
+          <div class="section">
+            <h3>Health Reports</h3>
+            ${data.healthReport.length > 0 ? `
+              <ul>
+                ${data.healthReport.map(hr => `<li><strong>${hr.description}</strong> (Score: ${hr.score})</li>`).join('')}
+              </ul>` : `<p>No health reports</p>`}
+          </div>
+        `;
+      })
+      .catch(error => {
+        document.getElementById('output').innerText = 'Error loading data: ' + error;
+      });
+  </script>
+</body>
+</html>
