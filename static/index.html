@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Jenkins Job Monitor</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <div class="container">
+    <h1>Jenkins Job Details</h1>
+    <div id="job-data">
+      <p><strong>Name:</strong> <span id="name"></span></p>
+      <p><strong>Display Name:</strong> <span id="displayName"></span></p>
+      <p><strong>URL:</strong> <a id="url" href="#" target="_blank">Visit</a></p>
+      <p><strong>Buildable:</strong> <span id="buildable"></span></p>
+      <p><strong>Color:</strong> <span id="color"></span></p>
+      <p><strong>Next Build Number:</strong> <span id="nextBuild"></span></p>
+      <p><strong>Last Successful Build:</strong> <span id="lastSuccessful"></span></p>
+      <h3>Health Reports</h3>
+      <ul id="healthReports"></ul>
+    </div>
+  </div>
+  <script>
+    fetch("/api/job")
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("name").textContent = data.name;
+        document.getElementById("displayName").textContent = data.displayName;
+        document.getElementById("url").href = data.url;
+        document.getElementById("buildable").textContent = data.buildable;
+        document.getElementById("color").textContent = data.color;
+        document.getElementById("nextBuild").textContent = data.nextBuildNumber;
+        document.getElementById("lastSuccessful").textContent = data.lastSuccessfulBuild ? `#${data.lastSuccessfulBuild.number}` : "None";
+
+        const list = document.getElementById("healthReports");
+        if (data.healthReport.length === 0) {
+          list.innerHTML = "<li>No Health Reports</li>";
+        } else {
+          data.healthReport.forEach(hr => {
+            const li = document.createElement("li");
+            li.textContent = `${hr.description} (Score: ${hr.score})`;
+            list.appendChild(li);
+          });
+        }
+      })
+      .catch(err => {
+        document.getElementById("job-data").innerHTML = "Error fetching job data.";
+        console.error("Fetch error:", err);
+      });
+  </script>
+</body>
+</html>
