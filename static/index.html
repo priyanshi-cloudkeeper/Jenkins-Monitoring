@@ -1,53 +1,147 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Jenkins Job Monitor</title>
-  <link rel="stylesheet" href="style.css"/>
+  <title>Jenkins Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f4f4;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      margin: 5px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      background: white;
+      margin: 5px 0;
+      padding: 10px;
+      border-left: 5px solid #4caf50;
+    }
+    li.failure {
+      border-color: #f44336;
+    }
+    li.running {
+      border-color: #2196f3;
+    }
+    li.disabled {
+      border-color: #9e9e9e;
+      color: #666;
+    }
+    #jobChart {
+      width: 300px !important;
+      height: 300px !important;
+      max-width: 300px;
+      max-height: 300px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>Jenkins Job Details</h1>
-    <div id="job-data">
-      <p><strong>Name:</strong> <span id="name"></span></p>
-      <p><strong>Display Name:</strong> <span id="displayName"></span></p>
-      <p><strong>URL:</strong> <a id="url" href="#" target="_blank">Visit</a></p>
-      <p><strong>Buildable:</strong> <span id="buildable"></span></p>
-      <p><strong>Color:</strong> <span id="color"></span></p>
-      <p><strong>Next Build Number:</strong> <span id="nextBuild"></span></p>
-      <p><strong>Last Successful Build:</strong> <span id="lastSuccessful"></span></p>
-      <h3>Health Reports</h3>
-      <ul id="healthReports"></ul>
-    </div>
-  </div>
-  <script>
-    fetch("/api/job")
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById("name").textContent = data.name;
-        document.getElementById("displayName").textContent = data.displayName;
-        document.getElementById("url").href = data.url;
-        document.getElementById("buildable").textContent = data.buildable;
-        document.getElementById("color").textContent = data.color;
-        document.getElementById("nextBuild").textContent = data.nextBuildNumber;
-        document.getElementById("lastSuccessful").textContent = data.lastSuccessfulBuild ? `#${data.lastSuccessfulBuild.number}` : "None";
+  <h1>Jenkins Dashboard</h1>
 
-        const list = document.getElementById("healthReports");
-        if (data.healthReport.length === 0) {
-          list.innerHTML = "<li>No Health Reports</li>";
-        } else {
-          data.healthReport.forEach(hr => {
-            const li = document.createElement("li");
-            li.textContent = `${hr.description} (Score: ${hr.score})`;
-            list.appendChild(li);
-          });
+  <canvas id="jobChart"></canvas>
+
+  <div>
+    <button onclick="filterJobs('ALL')">Show All</button>
+    <button onclick="filterJobs('SUCCESS')">Show Successful</button>
+    <button onclick="filterJobs('FAILURE')">Show Failed</button>
+    <button onclick="filterJobs('RUNNING')">Show Running</button>
+    <button onclick="filterJobs('DISABLED')">Show Disabled</button>
+  </div>
+
+  <ul id="jobList"></ul>
+
+  <script>
+    let allJobs = [];
+
+    async function fetchJobs() {
+      const res = await fetch('/api/jobs');
+      const jobs = await res.json();
+
+      allJobs = jobs;
+      renderChart(jobs);
+      renderJobs(jobs);
+    }
+
+    function renderChart(jobs) {
+      const counts = { SUCCESS: 0, FAILURE: 0, RUNNING: 0, DISABLED: 0 };
+
+      jobs.forEach(job => {
+        if (counts[job.status] !== undefined) {
+          counts[job.status]++;
         }
-      })
-      .catch(err => {
-        document.getElementById("job-data").innerHTML = "Error fetching job data.";
-        console.error("Fetch error:", err);
       });
+
+      const ctx = document.getElementById('jobChart').getContext('2d');
+
+      if (window.jobPieChart) {
+        window.jobPieChart.destroy();
+      }
+
+      window.jobPieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['Success', 'Failure', 'Running', 'Disabled'],
+          datasets: [{
+            data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED],
+            backgroundColor: [
+              '#4caf50',
+              '#f44336',
+              '#2196f3',
+              '#9e9e9e'
+            ]
+          }]
+        },
+        options: {
+          responsive: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+            }
+          }
+        }
+      });
+    }
+
+    function renderJobs(jobs) {
+      const list = document.getElementById('jobList');
+      list.innerHTML = '';
+
+      jobs.forEach(job => {
+        const li = document.createElement('li');
+        li.textContent = `${job.name} — ${job.status}`;
+
+        if (job.status === 'FAILURE') {
+          li.classList.add('failure');
+        } else if (job.status === 'RUNNING') {
+          li.classList.add('running');
+        } else if (job.status === 'DISABLED') {
+          li.classList.add('disabled');
+        }
+
+        list.appendChild(li);
+      });
+    }
+
+    function filterJobs(status) {
+      if (status === 'ALL') {
+        renderJobs(allJobs);
+      } else {
+        const filtered = allJobs.filter(job => job.status === status);
+        renderJobs(filtered);
+      }
+    }
+
+    fetchJobs();
   </script>
 </body>
 </html>
