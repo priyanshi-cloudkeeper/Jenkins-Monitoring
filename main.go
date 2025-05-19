@@ -8,7 +8,7 @@ import (
 
 func main() {
 	http.HandleFunc("/api/jobs", jobsHandler)
-	http.HandleFunc("/api/job", jobDetailHandler)
+	http.HandleFunc("/api/job-details", jobDetailHandler)
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)

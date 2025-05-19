@@ -3,7 +3,7 @@ package main
 import (
     "encoding/json"
     "fmt"
-    "io"
+
     "net/http"
 )
 
@@ -20,7 +20,7 @@ type JenkinsResponse struct {
 func fetchJobs() ([]JenkinsJob, error) {
     url := "http://localhost:8080/api/json"
     req, _ := http.NewRequest("GET", url, nil)
-    req.SetBasicAuth("diya", "diya")
+    req.SetBasicAuth("priyanshi", "mb4uuvXm@1")
     client := &http.Client{}
     resp, err := client.Do(req)
     if err != nil {
@@ -78,9 +78,10 @@ func jobDetailHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Missing job name", http.StatusBadRequest)
         return
     }
+
     url := fmt.Sprintf("http://localhost:8080/job/%s/api/json", name)
     req, _ := http.NewRequest("GET", url, nil)
-    req.SetBasicAuth("diya", "diya")
+    req.SetBasicAuth("priyanshi", "mb4uuvXm@1")
     client := &http.Client{}
     resp, err := client.Do(req)
     if err != nil {
@@ -89,9 +90,16 @@ func jobDetailHandler(w http.ResponseWriter, r *http.Request) {
     }
     defer resp.Body.Close()
 
-    w.Header().Set("Content-Type", "application/json")
-    _, err = io.Copy(w, resp.Body)
+    var jobDetail JobDetail
+    err = json.NewDecoder(resp.Body).Decode(&jobDetail)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Error(w, "Failed to decode Jenkins response: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    err = json.NewEncoder(w).Encode(jobDetail)
+    if err != nil {
+        http.Error(w, "Failed to encode response: "+err.Error(), http.StatusInternalServerError)
     }
 }

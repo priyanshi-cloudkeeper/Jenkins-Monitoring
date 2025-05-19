@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Jenkins Dashboard</title>
   <style>
@@ -8,43 +9,69 @@
       margin: 20px;
       background: #f4f4f4;
     }
+
     h1 {
       color: #333;
     }
+
     button {
       margin: 5px;
       padding: 8px 12px;
       cursor: pointer;
     }
+
     ul {
       list-style: none;
       padding: 0;
     }
+
     li {
       background: white;
       margin: 5px 0;
       padding: 10px;
       border-left: 5px solid #4caf50;
+      cursor: pointer;
     }
+
     li.failure {
       border-color: #f44336;
     }
+
     li.running {
       border-color: #2196f3;
     }
+
     li.disabled {
       border-color: #9e9e9e;
       color: #666;
     }
+
     #jobChart {
       width: 300px !important;
       height: 300px !important;
       max-width: 300px;
       max-height: 300px;
     }
+
+    #jobDetails {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      max-width: 600px;
+      white-space: pre-wrap;
+      margin-top: 20px;
+      font-family: monospace;
+      overflow-x: auto;
+    }
+
+    #jobDetails a {
+      color: #2196f3;
+      text-decoration: none;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
   <h1>Jenkins Dashboard</h1>
 
@@ -60,16 +87,24 @@
 
   <ul id="jobList"></ul>
 
+  <h2>Job Details</h2>
+  <pre id="jobDetails">Click on a job to see details here.</pre>
+
   <script>
     let allJobs = [];
 
     async function fetchJobs() {
-      const res = await fetch('/api/jobs');
-      const jobs = await res.json();
+      try {
+        const res = await fetch('/api/jobs');
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        const jobs = await res.json();
 
-      allJobs = jobs;
-      renderChart(jobs);
-      renderJobs(jobs);
+        allJobs = jobs;
+        renderChart(jobs);
+        renderJobs(jobs);
+      } catch (err) {
+        document.getElementById('jobDetails').textContent = 'Failed to fetch jobs: ' + err.message;
+      }
     }
 
     function renderChart(jobs) {
@@ -128,8 +163,39 @@
           li.classList.add('disabled');
         }
 
+        li.onclick = () => fetchJobDetails(job.name);
+
         list.appendChild(li);
       });
+    }
+
+    async function fetchJobDetails(name) {
+      const detailsPre = document.getElementById('jobDetails');
+      detailsPre.textContent = 'Loading details for ' + name + '...';
+
+      try {
+        const res = await fetch(`/api/job-details?name=${encodeURIComponent(name)}`);
+        if (!res.ok) {
+          detailsPre.textContent = `Failed to load details for ${name} (status: ${res.status})`;
+          return;
+        }
+        const details = await res.json();
+
+        const html = `
+Job Name:            ${details.name}
+URL:                 ${details.url}
+Buildable:           ${details.buildable}
+In Queue:            ${details.inQueue}
+Health:              ${details.healthReport?.[0]?.description || 'N/A'}
+Last Build:          #${details.lastBuild?.number || 'N/A'} — ${details.lastBuild?.url || ''}
+Last Successful:     #${details.lastSuccessfulBuild?.number || 'N/A'}
+Last Failed:         ${details.lastFailedBuild?.number || 'None'}
+Next Build Number:   ${details.nextBuildNumber}
+        `;
+        detailsPre.textContent = html.trim();
+      } catch (err) {
+        detailsPre.textContent = `Error fetching details: ${err.message}`;
+      }
     }
 
     function filterJobs(status) {
@@ -144,4 +210,5 @@
     fetchJobs();
   </script>
 </body>
+
 </html>
