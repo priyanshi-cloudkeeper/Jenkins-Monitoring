@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html>
 
 <head>
@@ -205,6 +205,139 @@ Next Build Number:   ${details.nextBuildNumber}
         const filtered = allJobs.filter(job => job.status === status);
         renderJobs(filtered);
       }
+    }
+
+    fetchJobs();
+  </script>
+</body>
+
+</html> -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jenkins Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Jenkins Job Dashboard</h1>
+    </header>
+
+    <section class="dashboard">
+      <div class="chart-panel">
+        <canvas id="jobChart"></canvas>
+      </div>
+
+      <div class="controls">
+        <button onclick="filterJobs('ALL')">All</button>
+        <button onclick="filterJobs('SUCCESS')">Success</button>
+        <button onclick="filterJobs('FAILURE')">Failed</button>
+        <button onclick="filterJobs('RUNNING')">Running</button>
+        <button onclick="filterJobs('DISABLED')">Disabled</button>
+      </div>
+
+      <ul id="jobList" class="job-list"></ul>
+    </section>
+
+    <section class="details">
+      <h2>Job Details</h2>
+      <pre id="jobDetails">Click a job to see details.</pre>
+    </section>
+  </div>
+
+  <script>
+    let allJobs = [];
+
+    async function fetchJobs() {
+      try {
+        const res = await fetch('/api/jobs');
+        const jobs = await res.json();
+        allJobs = jobs;
+        renderChart(jobs);
+        renderJobs(jobs);
+      } catch (err) {
+        document.getElementById('jobDetails').textContent = 'Failed to fetch jobs: ' + err.message;
+      }
+    }
+
+    function renderChart(jobs) {
+      const counts = { SUCCESS: 0, FAILURE: 0, RUNNING: 0, DISABLED: 0 };
+
+      jobs.forEach(job => {
+        if (counts[job.status] !== undefined) {
+          counts[job.status]++;
+        }
+      });
+
+      const ctx = document.getElementById('jobChart').getContext('2d');
+      if (window.jobPieChart) window.jobPieChart.destroy();
+
+      window.jobPieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Success', 'Failure', 'Running', 'Disabled'],
+          datasets: [{
+            data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED],
+            backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e']
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+
+    function renderJobs(jobs) {
+      const list = document.getElementById('jobList');
+      list.innerHTML = '';
+
+      jobs.forEach(job => {
+        const li = document.createElement('li');
+        li.className = `job-card ${job.status.toLowerCase()}`;
+        li.innerHTML = `
+          <div class="job-name">${job.name}</div>
+          <div class="job-status">${job.status}</div>
+        `;
+        li.onclick = () => fetchJobDetails(job.name);
+        list.appendChild(li);
+      });
+    }
+
+    async function fetchJobDetails(name) {
+      const detailsPre = document.getElementById('jobDetails');
+      detailsPre.textContent = 'Loading...';
+
+      try {
+        const res = await fetch(`/api/job-details?name=${encodeURIComponent(name)}`);
+        const job = await res.json();
+
+        detailsPre.textContent = `
+Job Name:            ${job.name}
+URL:                 ${job.url}
+Buildable:           ${job.buildable}
+In Queue:            ${job.inQueue}
+Health:              ${job.healthReport?.[0]?.description || 'N/A'}
+Last Build:          #${job.lastBuild?.number || 'N/A'} - ${job.lastBuild?.url || ''}
+Last Successful:     #${job.lastSuccessfulBuild?.number || 'N/A'}
+Last Failed:         #${job.lastFailedBuild?.number || 'None'}
+Next Build Number:   ${job.nextBuildNumber}
+        `.trim();
+      } catch (err) {
+        detailsPre.textContent = 'Error loading job details: ' + err.message;
+      }
+    }
+
+    function filterJobs(status) {
+      const filtered = status === 'ALL' ? allJobs : allJobs.filter(j => j.status === status);
+      renderJobs(filtered);
     }
 
     fetchJobs();
