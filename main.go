@@ -4,11 +4,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
 )
+
+
 
 func main() {
 	http.HandleFunc("/api/jobs", jobsHandler)
 	http.HandleFunc("/api/job-details", jobDetailHandler)
+	initDB()
+	StartBackgroundRefresher()
 
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
