@@ -102,7 +102,7 @@ func fetchJobsFromJenkinsAPI() ([]JenkinsJob, error) {
 	resp, err := client.Do(req)
 	if err != nil { return nil, fmt.Errorf("fetching jobs from Jenkins: %w", err) }
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { bodyBytes, _ := io.ReadAll(resp.Body); return nil, fmt.Errorf("Jenkins API err (%d): %s", resp.StatusCode, string(bodyBytes)) }
+	if resp.StatusCode != http.StatusOK { bodyBytes, _ := io.ReadAll(resp.Body); return nil, fmt.Errorf("jenkins API err (%d): %s", resp.StatusCode, string(bodyBytes)) }
 	var jenkinsResp JenkinsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&jenkinsResp); err != nil { return nil, fmt.Errorf("decoding Jenkins resp: %w", err) }
 	return jenkinsResp.Jobs, nil
@@ -390,7 +390,7 @@ func fetchAndStoreJobDetailsFromJenkins(jobName string) error {
 	client := &http.Client{Timeout: 20 * time.Second}; resp, err := client.Do(req)
 	if err != nil { return fmt.Errorf("fetching %s from Jenkins: %w", jobName, err) }
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { bodyBytes, _ := io.ReadAll(resp.Body); return fmt.Errorf("Jenkins API err for %s (%d): %s", jobName, resp.StatusCode, string(bodyBytes)) }
+	if resp.StatusCode != http.StatusOK { bodyBytes, _ := io.ReadAll(resp.Body); return fmt.Errorf("jenkins API err for %s (%d): %s", jobName, resp.StatusCode, string(bodyBytes)) }
 	bodyBytes, err := io.ReadAll(resp.Body); if err != nil { return fmt.Errorf("reading body for %s: %w", jobName, err) }
 	
 	var jobDetail JobDetail // From job-details.go
