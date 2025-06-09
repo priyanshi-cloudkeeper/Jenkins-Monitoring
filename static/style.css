@@ -416,3 +416,155 @@ body {
     border-color: #3d4852;
   }
 }
+
+/* Add these to your existing static/style.css */
+
+.details-section {
+  background: var(--bg-white);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  margin-top: var(--spacing-xxl);
+  box-shadow: var(--shadow-md);
+}
+
+.job-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--bg-muted);
+}
+
+.job-detail-header h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.job-detail-link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: var(--font-weight-semibold);
+}
+.job-detail-link:hover {
+  text-decoration: underline;
+}
+
+.job-detail-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-xl);
+}
+
+.job-detail-block {
+  padding: var(--spacing-lg);
+  background-color: var(--bg-primary); /* Slightly different background for blocks */
+  border-radius: var(--radius-md);
+}
+
+.job-detail-block h3 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-primary);
+  font-size: 1.1rem;
+  border-bottom: 1px solid #ddd; /* From root --bg-muted if dark mode sensitive */
+  padding-bottom: var(--spacing-sm);
+}
+@media (prefers-color-scheme: dark) {
+ .job-detail-block h3 {
+    border-bottom-color: var(--bg-muted);
+  }
+}
+
+
+.job-detail-block p {
+  margin: var(--spacing-sm) 0;
+  font-size: 0.9rem;
+}
+.job-detail-block p strong {
+  color: var(--color-text-secondary);
+  min-width: 120px;
+  display: inline-block;
+}
+
+
+.build-list, .health-report-list {
+  list-style: none;
+  padding: 0;
+  max-height: 300px; /* Limit height and make scrollable */
+  overflow-y: auto;
+}
+
+.build-item, .health-report-list li {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--color-text-muted); /* Default border */
+  background-color: var(--bg-primary); /* Match block for consistency */
+}
+@media (prefers-color-scheme: dark) {
+  .build-item, .health-report-list li {
+    background-color: var(--bg-white); /* Slightly lighter in dark mode for contrast */
+  }
+}
+
+
+.build-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  gap: var(--spacing-sm);
+}
+
+.build-link {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.build-link:hover {
+  text-decoration: underline;
+}
+
+.build-status {
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.build-time, .build-duration {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+/* Build status specific styling */
+.build-item--success { border-left-color: var(--color-success); }
+.build-item--success .build-status { background-color: rgba(76, 175, 80, 0.1); color: var(--color-success); }
+
+.build-item--failure { border-left-color: var(--color-error); }
+.build-item--failure .build-status { background-color: rgba(244, 67, 54, 0.1); color: var(--color-error); }
+
+.build-item--unstable { border-left-color: #ffc107; /* Assuming yellow */ }
+.build-item--unstable .build-status { background-color: rgba(255, 193, 7, 0.1); color: #b8860b; /* Darker yellow */ }
+
+.build-item--aborted { border-left-color: #757575; /* Assuming grey */ }
+.build-item--aborted .build-status { background-color: rgba(117, 117, 117, 0.1); color: #424242; }
+
+.build-item--in-progress { border-left-color: var(--color-info); }
+.build-item--in-progress .build-status { background-color: rgba(33, 150, 243, 0.1); color: var(--color-info); }
+
+.build-item--unknown { border-left-color: var(--color-text-muted); }
+.build-item--unknown .build-status { background-color: rgba(102, 102, 102, 0.1); color: var(--color-text-muted); }
+
+/* Raw JSON display for debugging - can be removed later */
+#jobDetailsRawJson {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background-color: var(--bg-muted);
+  border-radius: var(--radius-sm);
+  max-height: 200px;
+  overflow: auto;
+  font-size: 0.8rem;
+}
