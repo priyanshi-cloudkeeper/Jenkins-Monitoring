@@ -1,309 +1,373 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jenkins Dashboard</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jenkins Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Include Chart.js date adapter for time series charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
-
 <body>
-  <div class="container">
-    <header class="header">
-      <h1 class="header__title">Jenkins Job Dashboard</h1>
-      <div class="header__actions">
-        <a href="/logout" class="controls__button">Logout</a>
-      </div>
-    </header>
+    <div class="container">
+        <header class="header">
+            <h1 class="header__title">Jenkins Monitoring Dashboard</h1>
+             <div class="header__actions">
+                <a href="/logout" class="controls__button">Logout</a>
+            </div>
+        </header>
 
-    <section id="mainDashboardView" class="dashboard">
-      <div class="chart-panel">
-        <canvas id="jobChart" class="chart-panel__chart"></canvas>
-      </div>
+        <main id="mainDashboardView" class="dashboard-grid">
+            <!-- Row 1: Key Stats & Overall Status -->
+            <div class="panel panel-stat" id="panel-total-jobs">
+                <h3 class="panel-title">Total Jobs</h3>
+                <div class="panel-content stat-value" id="statTotalJobs">--</div>
+            </div>
+            <div class="panel panel-stat" id="panel-active-builds">
+                <h3 class="panel-title">Currently Running</h3>
+                <div class="panel-content stat-value" id="statActiveBuilds">--</div>
+            </div>
+            <div class="panel panel-stat" id="panel-success-today">
+                <h3 class="panel-title">Success Rate (Today)</h3>
+                <div class="panel-content stat-value" id="statSuccessToday">--%</div>
+            </div>
 
-      <div class="controls">
-        <button class="controls__button" onclick="filterJobs('ALL')">All</button>
-        <button class="controls__button" onclick="filterJobs('SUCCESS')">Success</button>
-        <button class="controls__button" onclick="filterJobs('FAILURE')">Failed</button>
-        <button class="controls__button" onclick="filterJobs('RUNNING')">Running</button>
-        <button class="controls__button" onclick="filterJobs('DISABLED')">Disabled</button>
-      </div>
+            <div class="panel panel-chart" id="panel-job-status-pie">
+                <h3 class="panel-title">Job Status Overview</h3>
+                <div class="panel-content">
+                    <canvas id="jobPieChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Row 2: Time Series & Lists -->
+            <div class="panel panel-chart panel-large" id="panel-build-history">
+                <h3 class="panel-title">Build Throughput & Success (Last 7 Days)</h3>
+                <div class="panel-content">
+                    <canvas id="buildHistoryChart"></canvas>
+                </div>
+            </div>
 
-      <ul id="jobList" class="job-list">
-        <!-- Job cards will be rendered here by JavaScript -->
-      </ul>
-    </section>
+            <div class="panel panel-list" id="panel-recent-failures">
+                <h3 class="panel-title">Recent Failing Builds (Top 5)</h3>
+                <ul id="listRecentFailures" class="data-list"><li>Loading...</li></ul>
+            </div>
+            
+            <!-- Row 3: All Jobs Table Panel -->
+            <div class="panel panel-list panel-full-width" id="panel-all-jobs-table">
+                <h3 class="panel-title">
+                    All Jobs
+                    <span class="panel-controls">
+                        <button class="controls__button controls__button--small" onclick="filterJobsTable('ALL')">All</button>
+                        <button class="controls__button controls__button--small" onclick="filterJobsTable('SUCCESS')">OK</button>
+                        <button class="controls__button controls__button--small" onclick="filterJobsTable('FAILURE')">Fail</button>
+                        <button class="controls__button controls__button--small" onclick="filterJobsTable('RUNNING')">Run</button>
+                        <button class="controls__button controls__button--small" onclick="filterJobsTable('DISABLED')">Off</button>
+                         <button class="controls__button controls__button--small" onclick="filterJobsTable('UNSTABLE')">Warn</button>
+                    </span>
+                </h3>
+                <div class="panel-content panel-content--table">
+                    <ul id="jobListTable" class="job-list job-list--table-view">
+                        <!-- Job cards will be rendered here by JavaScript -->
+                    </ul>
+                </div>
+            </div>
+        </main>
 
-    <!-- Job Detail View (Initially Hidden) -->
-    <section id="jobDetailView" class="details-section" style="display: none;">
-      <button class="controls__button" onclick="hideJobDetail()"> ← Back to List</button>
-      <div class="job-detail-header">
-        <h2 id="detailJobName"></h2>
-        <a id="detailJobURLExternal" href="#" target="_blank" class="job-detail-link">View on Jenkins →</a>
-      </div>
-
-      <div class="job-detail-content">
-        <div class="job-detail-block">
-          <h3>Job Info</h3>
-          <p><strong>Status:</strong> <span id="detailJobStatus"></span></p>
-          <p><strong>Description:</strong> <span id="detailJobDescription">N/A</span></p>
-          <p><strong>Data last synced:</strong> <span id="detailJobLastFetched">N/A</span></p>
-        </div>
-
-        <div class="job-detail-block">
-          <h3>Recent Builds</h3>
-          <ul id="detailBuildList" class="build-list">
-            <!-- Build items will be rendered here -->
-          </ul>
-        </div>
-
-        <div class="job-detail-block" id="healthReportBlock" style="display:none;">
-          <h3>Health Report</h3>
-          <ul id="detailHealthReport" class="health-report-list">
-            <!-- Health report items will be rendered here -->
-          </ul>
-        </div>
-      </div>
-      <pre id="jobDetailsRawJson" style="display:none;"></pre> <!-- For raw data if needed -->
-    </section>
-
-  </div>
-
-  <script>
-    let allJobsData = []; // Store data from /api/jobs
-    const mainDashboardView = document.getElementById('mainDashboardView');
-    const jobDetailView = document.getElementById('jobDetailView');
-
-    async function fetchJobs() {
-      try {
-        const res = await fetch('/api/jobs');
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const jobs = await res.json();
-        allJobsData = jobs || []; // Ensure it's an array
-        renderChart(allJobsData);
-        renderJobs(allJobsData);
-      } catch (err) {
-        const jobList = document.getElementById('jobList');
-        jobList.innerHTML = `<li class="job-card job-card--failure">Failed to fetch jobs: ${err.message}</li>`;
-        console.error("Failed to fetch jobs:", err);
-      }
-    }
-
-    function renderChart(jobs) {
-      const counts = { SUCCESS: 0, FAILURE: 0, RUNNING: 0, DISABLED: 0, UNSTABLE: 0, UNKNOWN: 0 };
-      (jobs || []).forEach(job => { // Add null check for jobs
-        if (counts[job.status] !== undefined) {
-          counts[job.status]++;
-        } else {
-          counts.UNKNOWN++;
-        }
-      });
-
-      const ctx = document.getElementById('jobChart').getContext('2d');
-      if (window.jobPieChart) window.jobPieChart.destroy();
-
-      window.jobPieChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Success', 'Failure', 'Running', 'Disabled', 'Unstable', 'Unknown'],
-          datasets: [{
-            data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED, counts.UNSTABLE, counts.UNKNOWN],
-            backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e', '#ffc107', '#777']
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom' }
-          }
-        }
-      });
-    }
-
-    function renderJobs(jobsToRender) {
-      const list = document.getElementById('jobList');
-      list.innerHTML = ''; // Clear existing jobs
-
-      if (!jobsToRender || jobsToRender.length === 0) {
-        list.innerHTML = '<li class="job-card">No jobs to display.</li>';
-        return;
-      }
-
-      jobsToRender.forEach(job => {
-        const li = document.createElement('li');
-        // Use status for the main border, ensuring it's lowercase and valid
-        let statusClass = (job.status || 'unknown').toLowerCase();
-        if (!['success', 'failure', 'running', 'disabled', 'unstable'].includes(statusClass)) {
-          statusClass = 'unknown'; // Fallback for unexpected statuses
-        }
-        li.className = `job-card job-card--${statusClass}`;
-
-        let lastBuildText = 'N/A';
-        if (job.last_build_number) {
-          lastBuildText = `#${job.last_build_number} - ${job.last_build_result || 'UNKNOWN'}`;
-          if (job.last_build_time) {
-            lastBuildText += ` (${new Date(job.last_build_time).toLocaleString()})`;
-          }
-        }
-
-        li.innerHTML = `
-          <div class="job-card__content">
-            <h3 class="job-card__name"><a href="${job.url}" target="_blank" onclick="event.stopPropagation()">${job.name}</a></h3>
-            <p class="job-card__meta">Last Build: ${lastBuildText}</p>
+        <!-- Job Detail View (Initially Hidden) -->
+        <section id="jobDetailView" class="details-section" style="display: none;">
+          <button class="controls__button" onclick="hideJobDetail()"> ← Back to Dashboard</button>
+          <div class="job-detail-header">
+            <h2 id="detailJobName"></h2>
+            <a id="detailJobURLExternal" href="#" target="_blank" class="job-detail-link">View on Jenkins →</a>
           </div>
-          <span class="job-card__status job-card__status--${statusClass}">${job.status || 'UNKNOWN'}</span>
-        `;
-        li.onclick = (event) => {
-          // Prevent navigation if the click was on the link itself
-          if (event.target.tagName !== 'A') {
-            showJobDetailView(job.name);
-          }
-        };
-        list.appendChild(li);
-      });
+          <div class="job-detail-content">
+            <div class="job-detail-block">
+                <h3>Job Info</h3>
+                <p><strong>Current Status:</strong> <span id="detailJobStatus"></span></p>
+                <p><strong>Description:</strong> <span id="detailJobDescription">N/A</span></p>
+                <p><strong>Data last synced:</strong> <span id="detailJobLastFetched">N/A</span></p>
+            </div>
+            <div class="job-detail-block">
+                <h3>Recent Builds (Last 20 from DB)</h3>
+                <ul id="detailBuildList" class="build-list"></ul>
+            </div>
+            <div class="job-detail-block" id="healthReportBlock" style="display:none;">
+                <h3>Health Report (from Jenkins)</h3>
+                <ul id="detailHealthReport" class="health-report-list"></ul>
+            </div>
+          </div>
+        </section>
+    </div>
+
+<script>
+    // --- Global Chart Instances ---
+    let jobPieChartInstance = null;
+    let buildHistoryChartInstance = null;
+    let allJobsDataCache = []; 
+
+    // --- DOM Elements ---
+    const mainDashboardViewEl = document.getElementById('mainDashboardView');
+    const jobDetailViewEl = document.getElementById('jobDetailView');
+
+    // --- Utility Functions ---
+    function formatStat(value, defaultValue = '--') {
+        return (value !== undefined && value !== null) ? value : defaultValue;
     }
 
+    function formatDate(dateStringOrTimestamp) {
+        if (!dateStringOrTimestamp) return 'N/A';
+        const date = typeof dateStringOrTimestamp === 'number' ? new Date(dateStringOrTimestamp) : new Date(dateStringOrTimestamp);
+        return date.toLocaleString();
+    }
+    
+    function mapJobStatusToClassName(status) {
+        let s = (status || 'unknown').toLowerCase();
+        const valid = ['success', 'failure', 'running', 'disabled', 'unstable'];
+        return valid.includes(s) ? s : 'unknown';
+    }
+
+    function mapColorToStatusFrontend(color) { // For job detail view if color is available
+        if (!color) return "UNKNOWN";
+        if (color.includes("_anime")) return "RUNNING";
+        switch (color) {
+            case "blue": return "SUCCESS";
+            case "red": return "FAILURE";
+            case "yellow": return "UNSTABLE";
+            case "aborted": return "ABORTED";
+            case "disabled": case "grey": case "notbuilt": return "DISABLED";
+            default: return "UNKNOWN";
+        }
+    }
+
+    // --- Panel Data Fetch & Render Functions ---
+    async function fetchStatsSummary() {
+        try {
+            const res = await fetch('/api/stats/summary');
+            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+            const data = await res.json();
+            document.getElementById('statTotalJobs').textContent = formatStat(data.total_jobs);
+            document.getElementById('statActiveBuilds').textContent = formatStat(data.running_jobs);
+            document.getElementById('statSuccessToday').textContent = data.success_rate_day !== null ? `${data.success_rate_day.toFixed(1)}%` : 'N/A';
+        } catch (err) {
+            console.error("Error fetching stats summary:", err);
+            ['statTotalJobs', 'statActiveBuilds', 'statSuccessToday'].forEach(id => document.getElementById(id).textContent = 'Err');
+        }
+    }
+
+    async function renderJobPieChart() {
+        try {
+            if (allJobsDataCache.length === 0) {
+                 await fetchAllJobsForTable(); // Ensure data is loaded
+                 if(allJobsDataCache.length === 0) throw new Error("No job data for pie chart.");
+            }
+            const counts = allJobsDataCache.reduce((acc, job) => {
+                const status = job.status || 'UNKNOWN';
+                acc[status] = (acc[status] || 0) + 1;
+                return acc;
+            }, { SUCCESS: 0, FAILURE: 0, RUNNING: 0, DISABLED: 0, UNSTABLE: 0, UNKNOWN: 0 });
+
+            const ctx = document.getElementById('jobPieChart').getContext('2d');
+            if (jobPieChartInstance) jobPieChartInstance.destroy();
+            jobPieChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Success', 'Failure', 'Running', 'Disabled', 'Unstable', 'Unknown'],
+                    datasets: [{
+                        data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED, counts.UNSTABLE, counts.UNKNOWN],
+                        backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e', '#ffc107', '#777'],
+                        borderColor: 'var(--bg-white)', borderWidth: 2
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: 'var(--color-text-secondary)' } } } }
+            });
+        } catch (err) {
+            console.error("Error rendering job pie chart:", err);
+            document.getElementById('panel-job-status-pie').querySelector('.panel-content').innerHTML = '<p class="error-text">Chart Err</p>';
+        }
+    }
+
+    async function fetchAndRenderBuildHistoryChart() {
+        try {
+            const res = await fetch('/api/stats/build-history?range=7'); // Fetch last 7 days
+            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+            const data = await res.json(); 
+
+            const ctx = document.getElementById('buildHistoryChart').getContext('2d');
+            if (buildHistoryChartInstance) buildHistoryChartInstance.destroy();
+            buildHistoryChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [
+                        { label: 'Successful', data: data.map(d => d.successful_builds), backgroundColor: 'rgba(76, 175, 80, 0.7)', stack: 'builds' },
+                        { label: 'Failed', data: data.map(d => d.failed_builds), backgroundColor: 'rgba(244, 67, 54, 0.7)', stack: 'builds' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day' }, ticks: { color: 'var(--color-text-secondary)'}, grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { color: 'var(--color-text-secondary)'}, stacked: true, grid: { color: 'var(--bg-muted)' } }
+                    },
+                    plugins: { legend: { position: 'top', labels: { color: 'var(--color-text-secondary)' } } }
+                }
+            });
+        } catch (err) {
+            console.error("Error rendering build history chart:", err);
+            document.getElementById('panel-build-history').querySelector('.panel-content').innerHTML = '<p class="error-text">Chart Err</p>';
+        }
+    }
+    
+    async function fetchAndRenderRecentFailures() {
+        const listEl = document.getElementById('listRecentFailures');
+        listEl.innerHTML = '<li>Loading...</li>';
+        try {
+            const res = await fetch('/api/builds/recent-failures?limit=5');
+            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+            const failures = await res.json(); 
+            if (failures.length === 0) { listEl.innerHTML = '<li>No recent failures.</li>'; return; }
+            listEl.innerHTML = failures.map(f => `
+                <li class="data-list-item">
+                    <a href="${f.build_url}" target="_blank" title="${f.job_name} build ${f.build_number}">${f.job_name} #${f.build_number}</a> 
+                    <span class="timestamp">${formatDate(f.timestamp)}</span>
+                </li>`).join('');
+        } catch (err) {
+            console.error("Error fetching recent failures:", err);
+            listEl.innerHTML = '<li>Error loading failures.</li>';
+        }
+    }
+
+    async function fetchAllJobsForTable() {
+        try {
+            const res = await fetch('/api/jobs');
+            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+            allJobsDataCache = await res.json() || [];
+            renderJobsTable(allJobsDataCache);
+        } catch (err) {
+            console.error("Error fetching all jobs for table:", err);
+            document.getElementById('jobListTable').innerHTML = '<li>Error loading jobs.</li>';
+        }
+    }
+
+    function renderJobsTable(jobsToRender) {
+        const list = document.getElementById('jobListTable');
+        list.innerHTML = '';
+        if (!jobsToRender || jobsToRender.length === 0) {
+            list.innerHTML = '<li class="job-card job-card--disabled"><div class="job-card__content"><h3 class="job-card__name">No jobs match filter.</h3></div></li>';
+            return;
+        }
+        jobsToRender.forEach(job => {
+            const li = document.createElement('li');
+            const statusClass = mapJobStatusToClassName(job.status);
+            li.className = `job-card job-card--${statusClass}`;
+            let lastBuildText = 'N/A';
+            if (job.last_build_number) {
+                lastBuildText = `#${job.last_build_number} - ${job.last_build_result || 'UNKNOWN'}`;
+                if (job.last_build_time) { lastBuildText += ` (${formatDate(job.last_build_time)})`; }
+            }
+            li.innerHTML = `
+              <div class="job-card__content">
+                <h3 class="job-card__name"><a href="${job.url}" target="_blank" onclick="event.stopPropagation()">${job.name}</a></h3>
+                <p class="job-card__meta">Last Build: ${lastBuildText}</p>
+              </div>
+              <span class="job-card__status job-card__status--${statusClass}">${job.status || 'UNKNOWN'}</span>`;
+            li.onclick = (event) => { if (event.target.tagName !== 'A') { showJobDetailView(job.name); } };
+            list.appendChild(li);
+        });
+    }
+
+    function filterJobsTable(status) {
+        const filtered = status === 'ALL' ? allJobsDataCache : allJobsDataCache.filter(j => j.status === status);
+        renderJobsTable(filtered);
+    }
+
+    // --- Job Detail View Functions ---
     async function showJobDetailView(jobName) {
-      mainDashboardView.style.display = 'none';
-      jobDetailView.style.display = 'block';
+        mainDashboardViewEl.style.display = 'none';
+        jobDetailViewEl.style.display = 'block';
+        ['detailJobName', 'detailJobStatus', 'detailJobDescription', 'detailJobLastFetched']
+            .forEach(id => document.getElementById(id).textContent = 'Loading...');
+        document.getElementById('detailJobURLExternal').href = '#';
+        document.getElementById('detailBuildList').innerHTML = '<li>Loading builds...</li>';
+        document.getElementById('detailHealthReport').innerHTML = '';
+        document.getElementById('healthReportBlock').style.display = 'none';
 
-      // Reset fields
-      document.getElementById('detailJobName').textContent = 'Loading...';
-      document.getElementById('detailJobURLExternal').href = '#';
-      document.getElementById('detailJobStatus').textContent = '';
-      document.getElementById('detailJobDescription').textContent = 'N/A';
-      document.getElementById('detailBuildList').innerHTML = '<li>Loading builds...</li>';
-      document.getElementById('detailHealthReport').innerHTML = '';
-      document.getElementById('healthReportBlock').style.display = 'none';
-      document.getElementById('detailJobLastFetched').textContent = 'N/A';
+        try {
+            const res = await fetch(`/api/job-details?name=${encodeURIComponent(jobName)}`);
+            if (!res.ok) { const errTxt = await res.text(); throw new Error(`HTTP ${res.status}: ${errTxt}`);}
+            const jobData = await res.json(); // Expects JobAPIDetail
 
+            document.getElementById('detailJobName').textContent = jobData.displayName || jobData.name;
+            document.getElementById('detailJobURLExternal').href = jobData.url;
+            document.getElementById('detailJobStatus').textContent = mapColorToStatusFrontend(jobData.color); 
+            document.getElementById('detailJobDescription').textContent = jobData.description || 'No description provided by Jenkins API.';
+            document.getElementById('detailJobLastFetched').textContent = formatDate(jobData.last_fetched_at);
+            renderBuildsForDetailView(jobData.builds); // jobData.builds is []Build
 
-      try {
-        // Use the new endpoint that fetches from DB primarily
-        const res = await fetch(`/api/job-details?name=${encodeURIComponent(jobName)}`);
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`Failed to fetch job details: ${res.status} ${res.statusText}. Server: ${errorText}`);
+            // HealthReport is part of the embedded JobDetail, might be empty if not synced/available
+            if (jobData.healthReport && jobData.healthReport.length > 0) {
+                document.getElementById('healthReportBlock').style.display = 'block';
+                renderHealthReportForDetailView(jobData.healthReport);
+            }
+        } catch (err) {
+            document.getElementById('detailJobName').textContent = `Error: ${jobName}`;
+            document.getElementById('detailBuildList').innerHTML = `<li>${err.message}</li>`;
+            console.error("Error fetching job detail:", err);
         }
-        const jobData = await res.json(); // This is JobAPIDetail
-
-        document.getElementById('detailJobName').textContent = jobData.displayName || jobData.name;
-        document.getElementById('detailJobURLExternal').href = jobData.url;
-
-        let statusDisplay = 'UNKNOWN';
-        if (jobData.color) { // Use color from JobDetail if available
-          statusDisplay = mapColorToStatusFrontend(jobData.color);
-        }
-        document.getElementById('detailJobStatus').textContent = statusDisplay;
-        document.getElementById('detailJobDescription').textContent = jobData.description || 'No description provided.';
-
-        if (jobData.last_fetched_at) {
-          document.getElementById('detailJobLastFetched').textContent = new Date(jobData.last_fetched_at).toLocaleString();
-        }
-
-
-        renderBuildsForDetailView(jobData.builds); // jobData.builds is []Build from JobDetail
-
-        if (jobData.healthReport && jobData.healthReport.length > 0) {
-          document.getElementById('healthReportBlock').style.display = 'block';
-          renderHealthReportForDetailView(jobData.healthReport);
-        }
-
-        // For debugging, show raw JSON
-        // document.getElementById('jobDetailsRawJson').textContent = JSON.stringify(jobData, null, 2);
-        // document.getElementById('jobDetailsRawJson').style.display = 'block';
-
-
-      } catch (err) {
-        document.getElementById('detailJobName').textContent = `Error loading details for ${jobName}`;
-        document.getElementById('detailBuildList').innerHTML = `<li>Error: ${err.message}</li>`;
-        console.error("Error fetching job detail:", err);
-      }
     }
-
-    function mapColorToStatusFrontend(color) {
-      if (!color) return "UNKNOWN";
-      if (color.includes("_anime")) return "RUNNING";
-      switch (color) {
-        case "blue": return "SUCCESS";
-        case "red": return "FAILURE";
-        case "yellow": return "UNSTABLE";
-        case "aborted": return "ABORTED";
-        case "disabled": case "grey": case "notbuilt": return "DISABLED";
-        default: return "UNKNOWN";
-      }
-    }
-
 
     function hideJobDetail() {
-      jobDetailView.style.display = 'none';
-      mainDashboardView.style.display = 'grid'; // Or 'block' if that's preferred
-      // document.getElementById('jobDetailsRawJson').style.display = 'none';
+        jobDetailViewEl.style.display = 'none';
+        mainDashboardViewEl.style.display = 'grid';
     }
 
     function renderBuildsForDetailView(builds) {
       const buildListUl = document.getElementById('detailBuildList');
-      buildListUl.innerHTML = ''; // Clear previous builds
-
+      buildListUl.innerHTML = '';
       if (!builds || builds.length === 0) {
-        buildListUl.innerHTML = '<li class="build-item">No build information available.</li>';
-        return;
+        buildListUl.innerHTML = '<li class="build-item">No build data.</li>'; return;
       }
-
-      builds.forEach(build => {
+      builds.forEach(build => { // build is of type Build
         const li = document.createElement('li');
-        li.className = 'build-item'; // Add a class for styling builds
-
-        const buildDate = build.timestamp ? new Date(build.timestamp).toLocaleString() : 'N/A';
-        const durationSeconds = build.duration ? (build.duration / 1000).toFixed(1) + 's' : 'N/A';
-        const buildStatus = build.result ? build.result.toUpperCase() : 'IN PROGRESS'; // Use .result (pointer to string)
-
-        // Add class based on status for styling
-        let statusClass = (buildStatus || 'unknown').toLowerCase().replace(/\s+/g, '-');
-        if (!['success', 'failure', 'unstable', 'aborted', 'in-progress'].includes(statusClass)) {
-          statusClass = 'unknown';
-        }
-        li.classList.add(`build-item--${statusClass}`);
-
+        let buildStatusDisplay = (build.result ? build.result : 'IN PROGRESS').toUpperCase();
+        let statusClass = mapJobStatusToClassName(buildStatusDisplay);
+        li.className = `build-item build-item--${statusClass}`;
         li.innerHTML = `
           <a href="${build.url}" target="_blank" class="build-link">#${build.number}</a>
-          <span class="build-status">${buildStatus}</span>
-          <span class="build-time">${buildDate}</span>
-          <span class="build-duration">(${durationSeconds})</span>
-        `;
+          <span class="build-status">${buildStatusDisplay}</span>
+          <span class="build-time">${formatDate(build.timestamp)}</span>
+          <span class="build-duration">(${(build.duration / 1000).toFixed(1)}s)</span>`;
         buildListUl.appendChild(li);
       });
     }
-
+    
     function renderHealthReportForDetailView(healthReports) {
-      const hrList = document.getElementById('detailHealthReport');
-      hrList.innerHTML = '';
-      if (!healthReports || healthReports.length === 0) {
-        // hrList.innerHTML = '<li>No health report available.</li>'; // Already handled by block display
-        return;
-      }
-      healthReports.forEach(hr => {
-        const li = document.createElement('li');
-        // Basic display, can be enhanced with icons using hr.iconUrl or hr.iconClassName
-        li.textContent = `${hr.description || 'Health Item'} (Score: ${hr.score})`;
-        hrList.appendChild(li);
-      });
+        const hrList = document.getElementById('detailHealthReport');
+        hrList.innerHTML = '';
+        if (!healthReports || healthReports.length === 0) return;
+        healthReports.forEach(hr => {
+            const li = document.createElement('li');
+            li.textContent = `${hr.description || 'Health Item'} (Score: ${hr.score})`;
+            hrList.appendChild(li);
+        });
     }
 
+    // --- Initial Load & Refresh ---
+    async function initializeDashboard() {
+        await fetchAllJobsForTable(); // Populates allJobsDataCache
+        fetchStatsSummary();          
+        renderJobPieChart(); // Uses allJobsDataCache        
+        fetchAndRenderBuildHistoryChart(); 
+        fetchAndRenderRecentFailures();    
 
-    function filterJobs(status) {
-      const filtered = status === 'ALL' ? allJobsData : allJobsData.filter(j => j.status === status);
-      renderJobs(filtered);
+        // Optional periodic refresh for dynamic data
+        // setInterval(fetchStatsSummary, 30000); 
+        // setInterval(fetchAndRenderBuildHistoryChart, 5 * 60 * 1000); // every 5 mins
+        // setInterval(async () => { await fetchAllJobsForTable(); renderJobPieChart(); }, 60000);
     }
 
-    // Initial fetch
-    fetchJobs();
-    // Optional: Periodically refresh the main job list
-    // setInterval(fetchJobs, 30000); // e.g., every 30 seconds
-  </script>
+    document.addEventListener('DOMContentLoaded', initializeDashboard);
+</script>
 </body>
-
 </html>

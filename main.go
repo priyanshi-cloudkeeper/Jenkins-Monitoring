@@ -34,7 +34,12 @@ func main() {
 	// All API endpoints are on this protected router.
 	protectedRouter.HandleFunc("/api/jobs", jobsHandler)
 	protectedRouter.HandleFunc("/api/job-details", jobDetailsFromDBHandler)
-	protectedRouter.HandleFunc("/api/job", jobDetailHandler)
+	protectedRouter.HandleFunc("/api/job", originalJobDetailHandlerFromJenkins) // Fetches live from Jenkins
+
+	// New Stat Endpoints
+	protectedRouter.HandleFunc("/api/stats/summary", statsSummaryHandler)
+	protectedRouter.HandleFunc("/api/stats/build-history", buildHistoryHandler)
+	protectedRouter.HandleFunc("/api/builds/recent-failures", recentFailuresHandler)
 
 	// The root path ("/") serves the main dashboard application (index.html).
 	// This is also protected. We use a file server for this as well.

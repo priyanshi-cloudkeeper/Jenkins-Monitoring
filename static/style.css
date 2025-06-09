@@ -569,6 +569,189 @@ body {
   font-size: 0.8rem;
 }
 
+/* Add these to your existing static/style.css, or integrate them */
+
+/* ... (Your existing :root and base styles from previous ingest) ... */
+
+/* ===== NEW DASHBOARD GRID & PANEL STYLES ===== */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive columns */
+  gap: var(--spacing-lg, 15px); /* Use CSS var or default */
+  margin-bottom: var(--spacing-xxl, 30px);
+}
+
+.panel {
+  background-color: var(--bg-white, #ffffff);
+  padding: var(--spacing-lg, 15px);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow: var(--shadow-light, 0 2px 4px rgba(0,0,0,0.05));
+  display: flex;
+  flex-direction: column;
+  min-height: 120px; /* Minimum height for stat panels */
+}
+
+.panel-title {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md, 10px);
+  font-size: 0.9rem; /* Slightly smaller for panel titles */
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--color-text-secondary, #777);
+  border-bottom: 1px solid var(--bg-muted, #eee);
+  padding-bottom: var(--spacing-sm, 5px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-controls .controls__button--small {
+    padding: 3px 6px; /* Smaller padding */
+    font-size: 0.7rem; /* Smaller font */
+    min-width: auto;
+    margin-left: 5px;
+}
+
+
+.panel-content {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative; /* For canvas responsiveness */
+  overflow: hidden; /* Prevent content spill from charts */
+}
+
+.panel-content--table {
+    justify-content: flex-start;
+    align-items: flex-start;
+    overflow-y: auto; /* Make table scrollable if content overflows */
+    max-height: 450px; /* Example max height for job list panel */
+}
+
+
+.panel-stat .stat-value {
+  font-size: 2.5rem;
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-primary, #3498db);
+  line-height: 1;
+  text-align: center;
+}
+#panel-success-today .stat-value {
+    color: var(--color-success, #4caf50);
+}
+#panel-active-builds .stat-value {
+    color: var(--color-info, #2196f3);
+}
+
+
+.panel-chart .panel-content {
+    min-height: 250px; /* Ensure chart panels have some height */
+}
+.panel-chart .panel-content canvas {
+  /* Chart.js handles responsiveness if options.responsive = true and maintainAspectRatio = false */
+}
+
+/* Make some panels wider */
+.panel-large {
+    grid-column: span 2; /* Example: make this panel wider */
+}
+.panel-full-width {
+    grid-column: 1 / -1; /* Span all columns */
+}
+
+/* Adjust grid for different screen sizes */
+@media (max-width: 992px) { 
+    .panel-large {
+        grid-column: span 1; /* Stack on smaller screens */
+    }
+     .dashboard-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+}
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Single column */
+    }
+    .panel-stat .stat-value {
+        font-size: 2rem;
+    }
+}
+
+
+.data-list {
+    list-style: none;
+    padding: 0;
+    width: 100%;
+    margin:0;
+}
+.data-list-item {
+    padding: var(--spacing-sm, 5px) 0;
+    border-bottom: 1px solid var(--bg-muted, #eee);
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.data-list-item:last-child {
+    border-bottom: none;
+}
+.data-list-item a {
+    color: var(--color-primary, #3498db);
+    text-decoration: none;
+    margin-right: auto; /* Push timestamp to the right */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 70%; /* Prevent long names from breaking layout */
+}
+.data-list-item a:hover {
+    text-decoration: underline;
+}
+.data-list-item .timestamp {
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #666);
+    white-space: nowrap;
+    margin-left: var(--spacing-sm, 5px);
+}
+
+.error-text { /* For displaying errors within panels */
+    color: var(--color-error, #f44336);
+    font-style: italic;
+    text-align: center;
+    width: 100%;
+}
+
+/* Adjustments for job list when in table panel */
+.job-list--table-view {
+    width: 100%;
+}
+.job-list--table-view .job-card {
+    padding: var(--spacing-sm, 5px) var(--spacing-md, 10px);
+    margin-bottom: var(--spacing-xs, 3px); /* Tighter spacing */
+    font-size: 0.9rem; /* Slightly smaller overall text in table rows */
+}
+.job-list--table-view .job-card__name {
+    font-size: 0.95rem;
+}
+.job-list--table-view .job-card__meta {
+    font-size: 0.75rem;
+}
+.job-list--table-view .job-card__status {
+    font-size: 0.7rem;
+    padding: 2px 5px;
+}
+
+
+/* Styling for detail view sections is largely the same as previous response, ensure they are present */
+.details-section {
+  background: var(--bg-white, #ffffff);
+  padding: var(--spacing-xl, 20px);
+  border-radius: var(--radius-lg, 8px);
+  margin-top: var(--spacing-xxl, 30px);
+  box-shadow: var(--shadow-md, 0 2px 4px rgba(0,0,0,0.1));
+}
+/* ... (include other .job-detail-header, .job-detail-content, .job-detail-block, .build-list, .build-item styles from previous good version) ... */
+
 /* ===== AUTHENTICATION PAGES ===== */
 .auth-container {
   display: flex;
