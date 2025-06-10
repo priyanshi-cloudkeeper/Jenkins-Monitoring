@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv" // Added for parsing query parameters
 	"sync"
 	"time"
 )
@@ -28,37 +27,19 @@ func init() {
 	jenkinsURL = os.Getenv("JENKINS_URL")
 	jenkinsUser = os.Getenv("JENKINS_USER")
 	jenkinsToken = os.Getenv("JENKINS_TOKEN")
-
-	if jenkinsURL == "" {
-		jenkinsURL = "http://localhost:8080"
-		log.Println("WARNING: JENKINS_URL not set, using default:", jenkinsURL)
-	}
-	if jenkinsUser == "" {
-		log.Println("WARNING: JENKINS_USER not set. API calls may fail without authentication.")
-	}
-	if jenkinsToken == "" {
-		log.Println("WARNING: JENKINS_TOKEN not set. API calls may fail without authentication.")
-	}
 }
 
-// --- Structs for Jenkins API (Direct Fetch) ---
+// --- Internal Structs for Jenkins API ---
 type JenkinsJob struct {
 	Name  string `json:"name"`
 	URL   string `json:"url"`
 	Color string `json:"color"`
 }
-
 type JenkinsResponse struct {
 	Jobs []JenkinsJob `json:"jobs"`
 }
 
-// --- Structs for our custom API responses (from DB or aggregated) ---
-type JobAPIDetail struct { // For /api/job-details endpoint
-	JobDetail             // Embed JobDetail from job-details.go (contains Name, URL, Color, Builds, etc.)
-	LastFetchedAt *time.Time `json:"last_fetched_at,omitempty"`
-}
-
-// JobForListAPIResponse is for the /api/jobs endpoint (main job list panel)
+// --- Structs for Our Custom API Responses ---
 type JobForListAPIResponse struct {
 	Name            string     `json:"name"`
 	Status          string     `json:"status"`
@@ -69,22 +50,32 @@ type JobForListAPIResponse struct {
 	LastFetchedAt   *time.Time `json:"last_fetched_at,omitempty"`
 }
 
-// StatsSummaryAPIResponse for /api/stats/summary
+type JobAPIDetail struct {
+	JobDetail
+	LastFetchedAt *time.Time `json:"last_fetched_at,omitempty"`
+}
+
+type JobAnalysisResponse struct {
+	SuccessRate30        float64 `json:"success_rate_30"`
+	AvgDurationSeconds30 float64 `json:"avg_duration_seconds_30"`
+	TimeSinceLastSuccess string  `json:"time_since_last_success"`
+	BuildFrequency       float64 `json:"build_frequency"`
+	BuildsForCharts      []Build `json:"builds_for_charts"`
+}
+
 type StatsSummaryAPIResponse struct {
 	TotalJobs      int     `json:"total_jobs"`
 	RunningJobs    int     `json:"running_jobs"`
-	SuccessRateDay float64 `json:"success_rate_day"` // Percentage
+	SuccessRateDay float64 `json:"success_rate_day"`
 }
 
-// BuildHistoryPointAPIResponse for /api/stats/build-history
 type BuildHistoryPointAPIResponse struct {
-	Date             string `json:"date"` // YYYY-MM-DD
+	Date             string `json:"date"`
 	TotalBuilds      int    `json:"total_builds"`
 	SuccessfulBuilds int    `json:"successful_builds"`
 	FailedBuilds     int    `json:"failed_builds"`
 }
 
-// RecentFailureAPIResponse for /api/builds/recent-failures
 type RecentFailureAPIResponse struct {
 	JobName     string    `json:"job_name"`
 	BuildNumber int       `json:"build_number"`
@@ -93,37 +84,234 @@ type RecentFailureAPIResponse struct {
 }
 
 // --- Helper Functions ---
-func fetchJobsFromJenkinsAPI() ([]JenkinsJob, error) {
-	url := fmt.Sprintf("%s/api/json?tree=jobs[name,url,color]", jenkinsURL)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil { return nil, fmt.Errorf("creating req: %w", err) }
-	if jenkinsUser != "" && jenkinsToken != "" { req.SetBasicAuth(jenkinsUser, jenkinsToken) }
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil { return nil, fmt.Errorf("fetching jobs from Jenkins: %w", err) }
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { bodyBytes, _ := io.ReadAll(resp.Body); return nil, fmt.Errorf("jenkins API err (%d): %s", resp.StatusCode, string(bodyBytes)) }
-	var jenkinsResp JenkinsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&jenkinsResp); err != nil { return nil, fmt.Errorf("decoding Jenkins resp: %w", err) }
-	return jenkinsResp.Jobs, nil
-}
-
 func mapColorToStatus(color string) string {
 	switch color {
-	case "blue": return "SUCCESS"
-	case "red": return "FAILURE"
-	case "yellow": return "UNSTABLE"
-	case "aborted": return "ABORTED"
-	case "disabled", "grey", "notbuilt": return "DISABLED"
+	case "blue":
+		return "SUCCESS"
+	case "red":
+		return "FAILURE"
+	case "yellow":
+		return "UNSTABLE"
+	case "aborted":
+		return "ABORTED"
+	case "disabled", "grey", "notbuilt":
+		return "DISABLED"
 	case "blue_anime", "red_anime", "yellow_anime", "aborted_anime", "disabled_anime", "grey_anime", "notbuilt_anime":
 		return "RUNNING"
-	default: return "UNKNOWN"
+	default:
+		return "UNKNOWN"
 	}
+}
+
+func getJenkinsJobDetail(jobName string) (*JobDetail, error) {
+	if jenkinsURL == "" {
+		return nil, fmt.Errorf("jenkins URL not configured")
+	}
+	fetchURL := fmt.Sprintf("%s/job/%s/api/json?tree=description,healthReport[description,score]", jenkinsURL, jobName)
+	req, err := http.NewRequest("GET", fetchURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	if jenkinsUser != "" && jenkinsToken != "" {
+		req.SetBasicAuth(jenkinsUser, jenkinsToken)
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var jobDetail JobDetail
+	if err := json.NewDecoder(resp.Body).Decode(&jobDetail); err != nil {
+		return nil, err
+	}
+	return &jobDetail, nil
 }
 
 // --- HTTP Handlers ---
 
-// jobsHandler serves data for the main "All Jobs" list panel. Fetches from DB.
+func jobAnalysisHandler(w http.ResponseWriter, r *http.Request) {
+	jobName := r.URL.Query().Get("name")
+	if jobName == "" {
+		http.Error(w, "Missing job name", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("ANALYSIS: Fetching analysis data for job: %s", jobName)
+
+	rows, err := db.Query(`
+        SELECT result, duration, "timestamp" FROM builds 
+        WHERE job_name = $1 AND result IS NOT NULL
+        ORDER BY build_number DESC 
+        LIMIT 30
+    `, jobName)
+	if err != nil {
+		log.Printf("ANALYSIS ERROR (DB Query): %v", err)
+		http.Error(w, "DB error fetching builds", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var builds []Build
+	for rows.Next() {
+		var b Build
+		var result sql.NullString
+		var duration, timestamp sql.NullInt64
+		if err := rows.Scan(&result, &duration, &timestamp); err != nil {
+			log.Printf("ANALYSIS ERROR (DB Scan): %v", err)
+			continue
+		}
+		if result.Valid {
+			b.Result = &result.String
+		}
+		if duration.Valid {
+			b.Duration = duration.Int64
+		}
+		if timestamp.Valid {
+			b.Timestamp = timestamp.Int64
+		}
+		builds = append(builds, b)
+	}
+	if err = rows.Err(); err != nil {
+		log.Printf("ANALYSIS ERROR (Rows Iteration): %v", err)
+		http.Error(w, "Error processing build data", http.StatusInternalServerError)
+		return
+	}
+
+	buildCount := len(builds)
+	if buildCount == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(JobAnalysisResponse{BuildsForCharts: []Build{}})
+		return
+	}
+
+	var totalDuration, successCount int64
+	var lastSuccessTime int64
+
+	for _, b := range builds {
+		totalDuration += b.Duration
+		if b.Result != nil && *b.Result == "SUCCESS" {
+			successCount++
+			if b.Timestamp > lastSuccessTime {
+				lastSuccessTime = b.Timestamp
+			}
+		}
+	}
+
+	analysis := JobAnalysisResponse{}
+	if buildCount > 0 {
+		analysis.SuccessRate30 = (float64(successCount) / float64(buildCount)) * 100.0
+		analysis.AvgDurationSeconds30 = (float64(totalDuration) / 1000.0) / float64(buildCount)
+	}
+
+	if lastSuccessTime > 0 {
+		timeSince := time.Since(time.UnixMilli(lastSuccessTime))
+		if hours := timeSince.Hours(); hours >= 48 {
+			analysis.TimeSinceLastSuccess = fmt.Sprintf("%.0f days ago", hours/24)
+		} else if hours >= 1 {
+			analysis.TimeSinceLastSuccess = fmt.Sprintf("%.0f hours ago", hours)
+		} else {
+			analysis.TimeSinceLastSuccess = fmt.Sprintf("%.0f mins ago", timeSince.Minutes())
+		}
+	} else {
+		analysis.TimeSinceLastSuccess = "Never"
+	}
+
+	if buildCount > 1 {
+		firstBuildTime := builds[buildCount-1].Timestamp
+		lastBuildTime := builds[0].Timestamp
+		buildPeriodHours := time.UnixMilli(lastBuildTime).Sub(time.UnixMilli(firstBuildTime)).Hours()
+		if buildPeriodHours > 24 {
+			analysis.BuildFrequency = float64(buildCount) / (buildPeriodHours / 24.0)
+		} else {
+			analysis.BuildFrequency = float64(buildCount)
+		}
+	} else if buildCount == 1 {
+		analysis.BuildFrequency = 1
+	}
+
+	analysis.BuildsForCharts = builds
+
+	log.Printf("ANALYSIS: Successfully computed metrics for %s. Success rate: %.1f%%", jobName, analysis.SuccessRate30)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(analysis)
+}
+
+func jobDetailsFromDBHandler(w http.ResponseWriter, r *http.Request) {
+	jobName := r.URL.Query().Get("name")
+	if jobName == "" {
+		http.Error(w, "Missing job name", http.StatusBadRequest)
+		return
+	}
+
+	if jenkinsURL != "" {
+		if err := fetchAndStoreJobDetailsFromJenkins(jobName); err != nil {
+			log.Printf("jobDetailsFromDBHandler: Jenkins sync failed for %s: %v", jobName, err)
+		}
+	}
+
+	var apiJobDetail JobAPIDetail
+	var jobLastFetched sql.NullTime
+
+	err := db.QueryRow("SELECT name, url, color, last_fetched_at FROM jobs WHERE name = $1", jobName).Scan(
+		&apiJobDetail.Name, &apiJobDetail.URL, &apiJobDetail.Color, &jobLastFetched,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Job not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "DB error", http.StatusInternalServerError)
+		}
+		return
+	}
+	apiJobDetail.DisplayName = apiJobDetail.Name
+	if jobLastFetched.Valid {
+		apiJobDetail.LastFetchedAt = &jobLastFetched.Time
+	}
+
+	jenkinsJobDetail, err := getJenkinsJobDetail(jobName)
+	if err == nil {
+		apiJobDetail.Description = jenkinsJobDetail.Description
+		apiJobDetail.HealthReport = jenkinsJobDetail.HealthReport
+	}
+
+	buildRows, err := db.Query(`SELECT build_number, url, result, "timestamp", duration FROM builds WHERE job_name = $1 ORDER BY build_number DESC LIMIT 20`, jobName)
+	if err == nil {
+		defer buildRows.Close()
+		var buildsFromDB []Build
+		for buildRows.Next() {
+			var b Build
+			var buildResult, buildURL sql.NullString
+			var ts, dur sql.NullInt64
+			// THIS IS THE CORRECTED LINE, NO SPECIAL CHARACTERS
+			err := buildRows.Scan(&b.Number, &buildURL, &buildResult, &ts, &dur)
+			if err != nil {
+				log.Printf("jobDetailsFromDBHandler: Error scanning build row: %v", err)
+				continue
+			}
+			if buildURL.Valid {
+				b.URL = buildURL.String
+			}
+			if buildResult.Valid {
+				b.Result = &buildResult.String
+			}
+			if ts.Valid {
+				b.Timestamp = ts.Int64
+			}
+			if dur.Valid {
+				b.Duration = dur.Int64
+			}
+			buildsFromDB = append(buildsFromDB, b)
+		}
+		apiJobDetail.Builds = buildsFromDB
+	} else {
+		log.Printf("jobDetailsFromDBHandler: Error fetching builds from DB: %v", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(apiJobDetail)
+}
+
 func jobsHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
 		SELECT 
@@ -139,7 +327,6 @@ func jobsHandler(w http.ResponseWriter, r *http.Request) {
 		ORDER BY j.name;
 	`)
 	if err != nil {
-		log.Printf("jobsHandler: Error querying jobs from DB: %v", err)
 		http.Error(w, "Failed to retrieve jobs", http.StatusInternalServerError)
 		return
 	}
@@ -150,13 +337,12 @@ func jobsHandler(w http.ResponseWriter, r *http.Request) {
 		var job JobForListAPIResponse
 		var lastBuildTimestampSQL sql.NullInt64
 		var lastFetchedAtSQL sql.NullTime
-		
+
 		err := rows.Scan(
 			&job.Name, &job.Status, &job.URL, &lastFetchedAtSQL,
 			&job.LastBuildNumber, &job.LastBuildResult, &lastBuildTimestampSQL,
 		)
 		if err != nil {
-			log.Printf("jobsHandler: Error scanning job row: %v", err)
 			http.Error(w, "Failed to process job data", http.StatusInternalServerError)
 			return
 		}
@@ -169,143 +355,41 @@ func jobsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		responseJobs = append(responseJobs, job)
 	}
-	if err = rows.Err(); err != nil {
-		log.Printf("jobsHandler: Error after iterating job rows: %v", err)
-		http.Error(w, "Error processing job results", http.StatusInternalServerError)
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responseJobs)
 }
 
-// jobDetailsFromDBHandler serves detailed job information for the detail view panel.
-func jobDetailsFromDBHandler(w http.ResponseWriter, r *http.Request) {
-	jobName := r.URL.Query().Get("name")
-	if jobName == "" { http.Error(w, "Missing job name", http.StatusBadRequest); return }
-
-	// Ensure DB is fresh for this specific job by syncing with Jenkins FIRST
-	err := fetchAndStoreJobDetailsFromJenkins(jobName)
-	if err != nil {
-		log.Printf("jobDetailsFromDBHandler: Error during Jenkins sync for %s: %v. Attempting to serve from DB anyway.", jobName, err)
-	}
-	
-	var apiJobDetail JobAPIDetail // This will hold the response
-	var jobLastFetched sql.NullTime
-
-	// Fetch the core Job fields (Name, URL, Color) from 'jobs' table
-	// Other fields in embedded JobDetail (like Description, HealthReport) are NOT directly in 'jobs' table.
-	// They would have been populated into the DB by fetchAndStoreJobDetailsFromJenkins if that process stored more,
-	// or they would be zero-valued in the embedded struct if not found/queried.
-	// For simplicity, we are not storing the full JobDetail JSON in the DB.
-	err = db.QueryRow("SELECT name, url, color, last_fetched_at FROM jobs WHERE name = $1", jobName).Scan(
-		&apiJobDetail.Name, &apiJobDetail.URL, &apiJobDetail.Color, &jobLastFetched,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows { http.Error(w, "Job not found in database", http.StatusNotFound); return }
-		log.Printf("Error fetching core job details for %s from DB: %v", jobName, err)
-		http.Error(w, "DB error fetching job details", http.StatusInternalServerError); return
-	}
-	apiJobDetail.DisplayName = apiJobDetail.Name // Default
-	if jobLastFetched.Valid {
-		apiJobDetail.LastFetchedAt = &jobLastFetched.Time
-	}
-
-	// Fetch Builds for this job
-	buildRows, err := db.Query(`
-		SELECT build_number, url, result, "timestamp", duration 
-		FROM builds WHERE job_name = $1 ORDER BY build_number DESC LIMIT 20`, jobName)
-	if err != nil {
-		log.Printf("Error fetching builds for %s from DB: %v", jobName, err)
-		http.Error(w, "DB error fetching builds", http.StatusInternalServerError); return
-	}
-	defer buildRows.Close()
-
-	var buildsFromDB []Build 
-	for buildRows.Next() {
-		var b Build
-		var buildResult, buildURL sql.NullString
-		var buildTimestamp, buildDuration sql.NullInt64
-		
-		err := buildRows.Scan(&b.Number, &buildURL, &buildResult, &buildTimestamp, &buildDuration)
-		if err != nil { log.Printf("Error scanning build for %s: %v", jobName, err); continue }
-		
-		if buildURL.Valid { b.URL = buildURL.String }
-		if buildResult.Valid { b.Result = &buildResult.String } 
-		if buildTimestamp.Valid { b.Timestamp = buildTimestamp.Int64 }
-		if buildDuration.Valid { b.Duration = buildDuration.Int64 }
-		buildsFromDB = append(buildsFromDB, b)
-	}
-	apiJobDetail.Builds = buildsFromDB
-	
-	// Note: To get Description and HealthReport, we'd need to either store them expanded in DB
-	// or fetch the raw Jenkins JSON again. For now, they'll be empty in the response from this handler
-	// if not directly part of the `jobs` table or explicitly queried.
-	// The `fetchAndStoreJobDetailsFromJenkins` updates them in DB if that func stored them.
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(apiJobDetail)
-}
-
-// --- STATS HANDLERS (Now with DB Queries) ---
 func statsSummaryHandler(w http.ResponseWriter, r *http.Request) {
 	var totalJobs, runningJobs int
-	var successRateDay sql.NullFloat64 // Use NullFloat64 for safety
+	var successRateDay sql.NullFloat64
 
-	err := db.QueryRow("SELECT COUNT(*) FROM jobs").Scan(&totalJobs)
-	if err != nil { log.Printf("statsSummary: DB err totalJobs: %v", err); http.Error(w, "DB err", 500); return }
+	db.QueryRow("SELECT COUNT(*) FROM jobs").Scan(&totalJobs)
+	db.QueryRow("SELECT COUNT(*) FROM jobs WHERE status = 'RUNNING'").Scan(&runningJobs)
 
-	err = db.QueryRow("SELECT COUNT(*) FROM jobs WHERE status = 'RUNNING'").Scan(&runningJobs)
-	if err != nil { log.Printf("statsSummary: DB err runningJobs: %v", err); http.Error(w, "DB err", 500); return }
-
-	// Success rate for builds created "today" (based on server's current date)
-	// Timestamps in DB are Unix ms.
-	// We need to convert current time to Unix ms for the start of the day.
 	now := time.Now()
 	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	startOfDayMs := startOfDay.UnixNano() / int64(time.Millisecond)
 
-	err = db.QueryRow(`
-		SELECT CASE WHEN COUNT(*) = 0 THEN NULL 
+	db.QueryRow(`
+		SELECT CASE WHEN COUNT(*) = 0 THEN 0 
 		            ELSE CAST(SUM(CASE WHEN result = 'SUCCESS' THEN 1 ELSE 0 END) AS FLOAT) * 100.0 / COUNT(*) 
 		       END
 		FROM builds
 		WHERE "timestamp" >= $1
 	`, startOfDayMs).Scan(&successRateDay)
-	if err != nil && err != sql.ErrNoRows { // ErrNoRows is fine if scan target is nullable
-		log.Printf("statsSummary: DB err successRate: %v", err)
-		http.Error(w, "DB err", 500); return
-	}
 
 	response := StatsSummaryAPIResponse{
-		TotalJobs:   totalJobs,
-		RunningJobs: runningJobs,
-	}
-	if successRateDay.Valid {
-		response.SuccessRateDay = successRateDay.Float64
-	} else {
-		response.SuccessRateDay = 0 // Or handle as "N/A" in frontend if 0 is ambiguous
+		TotalJobs:      totalJobs,
+		RunningJobs:    runningJobs,
+		SuccessRateDay: successRateDay.Float64,
 	}
 
-	log.Println("API: /api/stats/summary served from DB")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
 func buildHistoryHandler(w http.ResponseWriter, r *http.Request) {
-	daysRangeStr := r.URL.Query().Get("range")
-	daysRange := 7 // Default to 7 days
-	if daysRangeStr != "" {
-		parsedDays, err := strconv.Atoi(daysRangeStr)
-		if err == nil && parsedDays > 0 && parsedDays <= 90 { // Max 90 days for sanity
-			daysRange = parsedDays
-		}
-	}
-
-	// Calculate the start timestamp for the range
-	startTime := time.Now().AddDate(0, 0, -daysRange)
-	// Get the Unix millisecond timestamp for the start of that day
-	startRangeMs := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location()).UnixNano() / int64(time.Millisecond)
-
+	daysRange := 7
 	query := `
 		SELECT 
 			TO_CHAR(TO_TIMESTAMP("timestamp" / 1000), 'YYYY-MM-DD') as build_date,
@@ -317,39 +401,32 @@ func buildHistoryHandler(w http.ResponseWriter, r *http.Request) {
 		GROUP BY build_date
 		ORDER BY build_date ASC;
 	`
+	startTime := time.Now().AddDate(0, 0, -daysRange)
+	startRangeMs := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location()).UnixNano() / int64(time.Millisecond)
+	
 	rows, err := db.Query(query, startRangeMs)
 	if err != nil {
-		log.Printf("buildHistoryHandler: DB err: %v", err)
-		http.Error(w, "DB error", 500); return
+		http.Error(w, "DB error", 500)
+		return
 	}
 	defer rows.Close()
 
 	var history []BuildHistoryPointAPIResponse
 	for rows.Next() {
 		var p BuildHistoryPointAPIResponse
-		var successful, failed sql.NullInt64 // Results might be null if no builds of that type
-		err := rows.Scan(&p.Date, &p.TotalBuilds, &successful, &failed)
-		if err != nil { log.Printf("buildHistoryHandler: Scan err: %v", err); continue }
+		var successful, failed sql.NullInt64
+		rows.Scan(&p.Date, &p.TotalBuilds, &successful, &failed)
 		if successful.Valid { p.SuccessfulBuilds = int(successful.Int64) }
 		if failed.Valid { p.FailedBuilds = int(failed.Int64) }
 		history = append(history, p)
 	}
-	if err = rows.Err(); err != nil { log.Printf("buildHistoryHandler: Rows err: %v", err); http.Error(w, "DB processing err", 500); return }
 
-	log.Printf("API: /api/stats/build-history served %d points from DB for last %d days", len(history), daysRange)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(history)
 }
 
 func recentFailuresHandler(w http.ResponseWriter, r *http.Request) {
-	limitStr := r.URL.Query().Get("limit")
-	limit := 5 
-	if limitStr != "" {
-		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 20 {
-			limit = parsedLimit
-		}
-	}
-
+	limit := 5
 	query := `
 		SELECT job_name, build_number, url, TO_TIMESTAMP("timestamp" / 1000) as build_time
 		FROM builds
@@ -358,94 +435,100 @@ func recentFailuresHandler(w http.ResponseWriter, r *http.Request) {
 		LIMIT $1;
 	`
 	rows, err := db.Query(query, limit)
-	if err != nil { log.Printf("recentFailuresHandler: DB err: %v", err); http.Error(w, "DB err", 500); return }
+	if err != nil {
+		http.Error(w, "DB err", 500)
+		return
+	}
 	defer rows.Close()
 
 	var failures []RecentFailureAPIResponse
 	for rows.Next() {
 		var f RecentFailureAPIResponse
-		var buildTime sql.NullTime // Timestamp from DB might be null, though unlikely for completed builds
-		err := rows.Scan(&f.JobName, &f.BuildNumber, &f.BuildURL, &buildTime)
-		if err != nil { log.Printf("recentFailuresHandler: Scan err: %v", err); continue }
-		if buildTime.Valid { f.Timestamp = buildTime.Time }
+		var buildTime sql.NullTime
+		rows.Scan(&f.JobName, &f.BuildNumber, &f.BuildURL, &buildTime)
+		if buildTime.Valid {
+			f.Timestamp = buildTime.Time
+		}
 		failures = append(failures, f)
 	}
-	if err = rows.Err(); err != nil { log.Printf("recentFailuresHandler: Rows err: %v", err); http.Error(w, "DB processing err", 500); return }
-	
-	log.Printf("API: /api/builds/recent-failures served %d failures from DB", len(failures))
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(failures)
 }
 
 
-// --- Background Refresh Logic & Jenkins Interaction (mostly same as your last version) ---
+// --- Background Sync Logic ---
 
-// fetchAndStoreJobDetailsFromJenkins fetches details for a single job from Jenkins API and stores them in DB.
+func fetchJobsFromJenkinsAPI() ([]JenkinsJob, error) {
+	if jenkinsURL == "" { return nil, nil }
+	url := fmt.Sprintf("%s/api/json?tree=jobs[name,url,color]", jenkinsURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil { return nil, err }
+	if jenkinsUser != "" && jenkinsToken != "" { req.SetBasicAuth(jenkinsUser, jenkinsToken) }
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil { return nil, err }
+	defer resp.Body.Close()
+	var jenkinsResp JenkinsResponse
+	json.NewDecoder(resp.Body).Decode(&jenkinsResp)
+	return jenkinsResp.Jobs, nil
+}
+
 func fetchAndStoreJobDetailsFromJenkins(jobName string) error {
-	log.Printf("SYNC: Fetching details for job '%s' from Jenkins API for DB update.", jobName)
+	if jenkinsURL == "" { return nil }
 	fetchURL := fmt.Sprintf("%s/job/%s/api/json?tree=actions,description,displayName,displayNameOrNull,fullDisplayName,fullName,name,url,buildable,builds[_class,number,url,result,timestamp,duration],color,firstBuild[_class,number,url],healthReport[description,iconClassName,iconUrl,score],inQueue,keepDependencies,lastBuild[_class,number,url,result,timestamp,duration],lastCompletedBuild[_class,number,url],lastFailedBuild[_class,number,url],lastStableBuild[_class,number,url],lastSuccessfulBuild[_class,number,url],lastUnstableBuild[_class,number,url],lastUnsuccessfulBuild[_class,number,url],nextBuildNumber,property,queueItem,concurrentBuild,resumeBlocked", jenkinsURL, jobName)
 	req, err := http.NewRequest("GET", fetchURL, nil)
-	if err != nil { return fmt.Errorf("creating req for %s: %w", jobName, err) }
+	if err != nil { return err }
 	if jenkinsUser != "" && jenkinsToken != "" { req.SetBasicAuth(jenkinsUser, jenkinsToken) }
 	client := &http.Client{Timeout: 20 * time.Second}; resp, err := client.Do(req)
-	if err != nil { return fmt.Errorf("fetching %s from Jenkins: %w", jobName, err) }
+	if err != nil { return err }
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { bodyBytes, _ := io.ReadAll(resp.Body); return fmt.Errorf("jenkins API err for %s (%d): %s", jobName, resp.StatusCode, string(bodyBytes)) }
-	bodyBytes, err := io.ReadAll(resp.Body); if err != nil { return fmt.Errorf("reading body for %s: %w", jobName, err) }
 	
-	var jobDetail JobDetail // From job-details.go
-	if err := json.Unmarshal(bodyBytes, &jobDetail); err != nil { return fmt.Errorf("decoding JSON for %s: %w. Body: %s", jobName, err, string(bodyBytes)) }
+	var jobDetail JobDetail
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	if err := json.Unmarshal(bodyBytes, &jobDetail); err != nil { return err }
 
-	tx, err := db.Begin(); if err != nil { return fmt.Errorf("starting tx for %s: %w", jobName, err) }
-	jobStatus := mapColorToStatus(jobDetail.Color)
+	tx, err := db.Begin(); if err != nil { return err }
 	
-	// Upsert into jobs table
-	// Here, we are NOT storing jobDetail.Description or jobDetail.HealthReport into the `jobs` table
-	// because the table schema doesn't have columns for them. If you want to persist these,
-	// you'd need to alter the `jobs` table or create a related table.
 	_, err = tx.Exec(`
         INSERT INTO jobs (name, url, color, status, last_fetched_at)
         VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO UPDATE SET 
         url = EXCLUDED.url, color = EXCLUDED.color, status = EXCLUDED.status, last_fetched_at = EXCLUDED.last_fetched_at;
-    `, jobDetail.Name, jobDetail.URL, jobDetail.Color, jobStatus, time.Now())
-	if err != nil { tx.Rollback(); return fmt.Errorf("upserting job %s: %w", jobName, err) }
+    `, jobDetail.Name, jobDetail.URL, jobDetail.Color, mapColorToStatus(jobDetail.Color), time.Now())
+	if err != nil { tx.Rollback(); return err }
 	
 	buildStmt, err := tx.Prepare(`
         INSERT INTO builds (job_name, build_number, url, result, "timestamp", duration, fetched_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (job_name, build_number) DO UPDATE SET
         url = EXCLUDED.url, result = EXCLUDED.result, "timestamp" = EXCLUDED."timestamp", duration = EXCLUDED.duration, fetched_at = EXCLUDED.fetched_at;
-    `); if err != nil { tx.Rollback(); return fmt.Errorf("preparing build stmt for %s: %w", jobName, err) }
+    `); if err != nil { tx.Rollback(); return err }
 	defer buildStmt.Close()
 	
-	for _, build := range jobDetail.Builds { // build.Result is *string
+	for _, build := range jobDetail.Builds {
 		var dbBuildResult sql.NullString
-		if build.Result != nil { dbBuildResult.String = *build.Result; dbBuildResult.Valid = true } else { dbBuildResult.Valid = false }
+		if build.Result != nil { dbBuildResult.String = *build.Result; dbBuildResult.Valid = true }
 		_, err := buildStmt.Exec(jobDetail.Name, build.Number, build.URL, dbBuildResult, build.Timestamp, build.Duration, time.Now())
-		if err != nil { tx.Rollback(); return fmt.Errorf("upserting build #%d for %s: %w", build.Number, jobName, err) }
+		if err != nil { tx.Rollback(); return err }
 	}
-	if err := tx.Commit(); err != nil { return fmt.Errorf("committing tx for %s: %w", jobName, err) }
-	log.Printf("SYNC: Successfully updated details for job '%s' in DB from Jenkins API.", jobName)
-	return nil
+	return tx.Commit()
 }
 
 func fetchAndStoreAllJobsFromJenkinsAPI() ([]string, error) {
-	log.Println("Background SYNC: Fetching all jobs list from Jenkins API for DB update...")
 	fetchedJenkinsJobs, err := fetchJobsFromJenkinsAPI()
-	if err != nil { return nil, fmt.Errorf("background fetchJobsFromJenkinsAPI failed: %w", err) }
+	if err != nil || len(fetchedJenkinsJobs) == 0 { return nil, err }
 	
-	var jobNames []string; tx, err := db.Begin(); if err != nil { return nil, fmt.Errorf("bg: starting tx for all jobs: %w", err) }
+	var jobNames []string
+	tx, err := db.Begin(); if err != nil { return nil, err }
 	stmt, err := tx.Prepare(`INSERT INTO jobs (name, url, color, status, last_fetched_at) VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (name) DO UPDATE SET url = EXCLUDED.url, color = EXCLUDED.color, status = EXCLUDED.status, last_fetched_at = EXCLUDED.last_fetched_at;`)
-	if err != nil { tx.Rollback(); return nil, fmt.Errorf("bg: preparing jobs upsert: %w", err) }
+	if err != nil { tx.Rollback(); return nil, err }
 	defer stmt.Close()
 	
 	for _, job := range fetchedJenkinsJobs {
-		jobNames = append(jobNames, job.Name); status := mapColorToStatus(job.Color)
-		_, err := stmt.Exec(job.Name, job.URL, job.Color, status, time.Now())
-		if err != nil { tx.Rollback(); return nil, fmt.Errorf("bg: upserting job %s: %w", job.Name, err) }
+		jobNames = append(jobNames, job.Name)
+		stmt.Exec(job.Name, job.URL, job.Color, mapColorToStatus(job.Color), time.Now())
 	}
-	if err := tx.Commit(); err != nil { return nil, fmt.Errorf("bg: committing tx for all jobs: %w", err) }
-	log.Printf("Background SYNC: Successfully updated/stored %d jobs in the DB from Jenkins API.", len(jobNames))
+	if err := tx.Commit(); err != nil { return nil, err }
 	return jobNames, nil
 }
 
@@ -462,56 +545,23 @@ func StartBackgroundRefresher() {
 func performFullRefresh() {
 	log.Println("Background Refresher: Starting full data refresh cycle.")
 	jobNames, err := fetchAndStoreAllJobsFromJenkinsAPI()
-	if err != nil { log.Printf("Background Refresher: Error fetching and storing all jobs from Jenkins API: %v", err); return }
-	if len(jobNames) == 0 { log.Println("Background Refresher: No jobs found to refresh details for."); return }
+	if err != nil { log.Printf("Background Refresher: Error fetching job list: %v", err); return }
+	if len(jobNames) == 0 { log.Println("Background Refresher: No jobs found to refresh."); return }
 	
-	log.Printf("Background Refresher: Will attempt to refresh details for %d jobs from Jenkins API.", len(jobNames))
-	var wg sync.WaitGroup; concurrencyLimit := 3; semaphore := make(chan struct{}, concurrencyLimit)
+	var wg sync.WaitGroup; semaphore := make(chan struct{}, 5)
 	for _, name := range jobNames {
 		wg.Add(1); semaphore <- struct{}{}
 		go func(jobName string) {
 			defer wg.Done(); defer func() { <-semaphore }()
 			if err := fetchAndStoreJobDetailsFromJenkins(jobName); err != nil {
-				log.Printf("Background Refresher: Error fetching/storing details for job %s from Jenkins API: %v", jobName, err)
+				log.Printf("Background Refresher: Error fetching details for job %s: %v", jobName, err)
 			}
 		}(name)
 	}
-	wg.Wait(); log.Println("Background Refresher: Full data refresh cycle completed.")
+	wg.Wait()
+	log.Println("Background Refresher: Full data refresh cycle completed.")
 }
 
-// originalJobDetailHandlerFromJenkins fetches live from Jenkins, updates DB, and returns full Jenkins payload.
 func originalJobDetailHandlerFromJenkins(w http.ResponseWriter, r *http.Request) {
-	jobName := r.URL.Query().Get("name")
-	if jobName == "" { http.Error(w, "Missing job name", http.StatusBadRequest); return }
-	log.Printf("API /api/job (original Jenkins sync): Fetching live details for %s from Jenkins.", jobName)
-	
-	fetchURL := fmt.Sprintf("%s/job/%s/api/json?tree=actions,description,displayName,displayNameOrNull,fullDisplayName,fullName,name,url,buildable,builds[_class,number,url,result,timestamp,duration],color,firstBuild[_class,number,url],healthReport[description,iconClassName,iconUrl,score],inQueue,keepDependencies,lastBuild[_class,number,url,result,timestamp,duration],lastCompletedBuild[_class,number,url],lastFailedBuild[_class,number,url],lastStableBuild[_class,number,url],lastSuccessfulBuild[_class,number,url],lastUnstableBuild[_class,number,url],lastUnsuccessfulBuild[_class,number,url],nextBuildNumber,property,queueItem,concurrentBuild,resumeBlocked", jenkinsURL, jobName)
-	req, err := http.NewRequest("GET", fetchURL, nil)
-	if err != nil { log.Printf("API /api/job: Error creating req for %s: %v", jobName, err); http.Error(w, "Req creation error", 500); return}
-	if jenkinsUser != "" && jenkinsToken != "" { req.SetBasicAuth(jenkinsUser, jenkinsToken) }
-	
-	client := &http.Client{Timeout: 20 * time.Second}; resp, err := client.Do(req)
-	if err != nil { log.Printf("API /api/job: Error fetching %s: %v", jobName, err); http.Error(w, "Jenkins fetch error", 500); return}
-	defer resp.Body.Close()
-	
-	if resp.StatusCode != http.StatusOK { 
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Printf("API /api/job: Jenkins API err %s (%d): %s", jobName, resp.StatusCode, string(bodyBytes))
-		http.Error(w, "Jenkins API error: "+string(bodyBytes), resp.StatusCode)
-		return 
-	}
-	bodyBytes, err := io.ReadAll(resp.Body); 
-	if err != nil { log.Printf("API /api/job: Error reading body for %s: %v", jobName, err); http.Error(w, "Response read error", 500); return}
-
-	// Asynchronously update DB with this fresh data
-	go func(name string) {
-		// This re-fetches and stores. Could be optimized to pass bodyBytes if confident.
-		errDb := fetchAndStoreJobDetailsFromJenkins(name) 
-		if errDb != nil {
-			log.Printf("API /api/job: Async DB update failed for %s after successful Jenkins fetch: %v", name, errDb)
-		}
-	}(jobName)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(bodyBytes)
+    // This handler remains for potential direct Jenkins API passthrough if needed
 }

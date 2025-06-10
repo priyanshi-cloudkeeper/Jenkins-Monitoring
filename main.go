@@ -5,54 +5,47 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 )
 
 func main() {
+	// Refactored to handle missing Jenkins URL gracefully
 	initDB()
-	StartBackgroundRefresher()
+	if os.Getenv("JENKINS_URL") != "" {
+		log.Println("Jenkins URL is configured. Starting background data refresher.")
+		StartBackgroundRefresher()
+	} else {
+		log.Println("WARNING: JENKINS_URL is not set. Application will run without connecting to Jenkins.")
+	}
 
-	// Create a new ServeMux (router). This gives us more control than using the default http handlers.
 	mux := http.NewServeMux()
 
-	// --- Step 1: Define PUBLIC routes. These are NOT protected by middleware. ---
-
-	// Handlers for login, signup, and logout logic.
+	// --- Public Routes ---
 	mux.HandleFunc("/login", loginHandler)
 	mux.HandleFunc("/signup", signupHandler)
 	mux.HandleFunc("/logout", logoutHandler)
-
-	// A file server for the "/static/" directory. This serves CSS, JS, etc.
-	// It is crucial that this is public so the login/signup pages can be styled.
 	fs := http.FileServer(http.Dir("./static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// --- Step 2: Define PROTECTED routes. ---
-
-	// Create a new router specifically for the protected dashboard and its API.
+	// --- Protected Routes ---
 	protectedRouter := http.NewServeMux()
 
-	// All API endpoints are on this protected router.
+	// Dashboard & Job List APIs
 	protectedRouter.HandleFunc("/api/jobs", jobsHandler)
-	protectedRouter.HandleFunc("/api/job-details", jobDetailsFromDBHandler)
-	protectedRouter.HandleFunc("/api/job", originalJobDetailHandlerFromJenkins) // Fetches live from Jenkins
-
-	// New Stat Endpoints
 	protectedRouter.HandleFunc("/api/stats/summary", statsSummaryHandler)
 	protectedRouter.HandleFunc("/api/stats/build-history", buildHistoryHandler)
 	protectedRouter.HandleFunc("/api/builds/recent-failures", recentFailuresHandler)
 
-	// The root path ("/") serves the main dashboard application (index.html).
-	// This is also protected. We use a file server for this as well.
+	// Job Detail View APIs
+	protectedRouter.HandleFunc("/api/job-details", jobDetailsFromDBHandler) // Basic info
+	protectedRouter.HandleFunc("/api/job-analysis", jobAnalysisHandler)    // NEW: Detailed metrics
+	protectedRouter.HandleFunc("/api/job", originalJobDetailHandlerFromJenkins) // Live Jenkins fetch
+
+	// Serve the main application
 	protectedRouter.Handle("/", http.FileServer(http.Dir("./static")))
 
-	// --- Step 3: Apply the middleware to the entire protected router. ---
-
-	// Any request that isn't a public route will be passed to this handler.
-	// We wrap our entire `protectedRouter` with the `authMiddleware`.
-	// Now, any request to "/" or "/api/..." will require a valid session.
+	// Apply middleware and start server
 	mux.Handle("/", authMiddleware(protectedRouter))
-
-	// --- Step 4: Start the server with our new, correctly configured mux. ---
-	fmt.Println("Server running at http://localhost:9090/login")
+	fmt.Println("Server running at http://localhost:9090")
 	log.Fatal(http.ListenAndServe(":9090", mux))
 }

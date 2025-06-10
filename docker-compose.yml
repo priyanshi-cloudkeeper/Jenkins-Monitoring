@@ -29,8 +29,8 @@ services:
     environment:
       DATABASE_URL: "postgres://jenkins:jenkins@db:5432/jenkins-data?sslmode=disable"
       JENKINS_URL: "http://host.docker.internal:8080"
-      JENKINS_USER: "diya"      # <-- Change this!
-      JENKINS_TOKEN: "diya" # <-- Change this!
+      JENKINS_USER: "Priyanshi"      # <-- Change this!
+      JENKINS_TOKEN: "mb4uuvXm@1" # <-- Change this!
     
     # =================== FIX 2: EXTRA_HOSTS ===================
     # This is required for Linux hosts to resolve host.docker.internal.
