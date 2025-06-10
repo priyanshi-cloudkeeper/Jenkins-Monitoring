@@ -63,16 +63,17 @@
         <h3 class="panel-title">
           All Jobs
           <span class="panel-controls">
-            <button class="controls__button controls__button--small" onclick="filterJobsTable('ALL')">All</button>
+            <input type="search" id="jobSearchInput" class="controls__search" placeholder="Search by name..." oninput="applyFiltersAndRender()">
+            <button class="controls__button controls__button--small" onclick="handleStatusFilter('ALL')">All</button>
             <button class="controls__button controls__button--small"
-              onclick="filterJobsTable('SUCCESS')">Success</button>
-            <button class="controls__button controls__button--small" onclick="filterJobsTable('FAILURE')">Fail</button>
+              onclick="handleStatusFilter('SUCCESS')">Success</button>
+            <button class="controls__button controls__button--small" onclick="handleStatusFilter('FAILURE')">Fail</button>
             <button class="controls__button controls__button--small"
-              onclick="filterJobsTable('RUNNING')">Running</button>
+              onclick="handleStatusFilter('RUNNING')">Running</button>
             <button class="controls__button controls__button--small"
-              onclick="filterJobsTable('DISABLED')">Disabled</button>
+              onclick="handleStatusFilter('DISABLED')">Disabled</button>
             <button class="controls__button controls__button--small"
-              onclick="filterJobsTable('UNSTABLE')">Warning</button>
+              onclick="handleStatusFilter('UNSTABLE')">Warning</button>
           </span>
         </h3>
         <div class="panel-content panel-content--table">
@@ -114,6 +115,7 @@
     let jobPieChartInstance = null;
     let buildHistoryChartInstance = null;
     let allJobsDataCache = [];
+    let currentStatusFilter = 'ALL'; // To track the active status filter
 
     // --- DOM Elements ---
     const mainDashboardViewEl = document.getElementById('mainDashboardView');
@@ -252,7 +254,7 @@
         const res = await fetch('/api/jobs');
         if (!res.ok) throw new Error(`HTTP error ${res.status}`);
         allJobsDataCache = await res.json() || [];
-        renderJobsTable(allJobsDataCache);
+        applyFiltersAndRender(); // Render with default filters
       } catch (err) {
         console.error("Error fetching all jobs for table:", err);
         document.getElementById('jobListTable').innerHTML = '<li>Error loading jobs.</li>';
@@ -286,9 +288,28 @@
       });
     }
 
-    function filterJobsTable(status) {
-      const filtered = status === 'ALL' ? allJobsDataCache : allJobsDataCache.filter(j => j.status === status);
-      renderJobsTable(filtered);
+    // New function to handle both status and search filters
+    function applyFiltersAndRender() {
+      let filteredJobs = allJobsDataCache;
+      const searchTerm = document.getElementById('jobSearchInput').value.trim().toLowerCase();
+
+      // 1. Filter by the active status button
+      if (currentStatusFilter !== 'ALL') {
+        filteredJobs = filteredJobs.filter(j => j.status === currentStatusFilter);
+      }
+
+      // 2. Filter by the search term
+      if (searchTerm) {
+        filteredJobs = filteredJobs.filter(j => j.name.toLowerCase().includes(searchTerm));
+      }
+
+      renderJobsTable(filteredJobs);
+    }
+
+    // New function for status buttons to call
+    function handleStatusFilter(status) {
+      currentStatusFilter = status;
+      applyFiltersAndRender();
     }
 
     // --- Job Detail View Functions ---
@@ -364,7 +385,7 @@
 
     // --- Initial Load & Refresh ---
     async function initializeDashboard() {
-      await fetchAllJobsForTable(); // Populates allJobsDataCache
+      await fetchAllJobsForTable(); // Populates allJobsDataCache and renders table
       fetchStatsSummary();
       renderJobPieChart(); // Uses allJobsDataCache        
       fetchAndRenderBuildHistoryChart();
