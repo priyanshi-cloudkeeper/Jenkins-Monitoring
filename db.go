@@ -15,7 +15,6 @@ var db *sql.DB // Keep db as a package-level variable
 // initDB initializes the database connection and creates tables if they don't exist.
 // This function is called from main() in main.go
 func initDB() {
-	// ... (rest of initDB remains the same)
 	err1 := godotenv.Load()
 	if err1 != nil {
 		log.Println("WARNING: Could not load .env file. Using environment variables directly.")
@@ -23,7 +22,7 @@ func initDB() {
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		//connStr = "postgres://jenkins:jenkins@localhost:5432/postgres?sslmode=disable"
-		log.Println("WARNING: DATABASE_URL environment variable not set. Using default (potentially insecure).")
+		log.Println("WARNING: DATABASE_URL environment variable not set.")
 		//log.Println("Example: postgres://youruser:yourpassword@yourhost:yourport/yourdatabase?sslmode=require")
 	}
 

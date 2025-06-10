@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # The PostgreSQL Database Service
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: jenkins
+      POSTGRES_PASSWORD: jenkins
+      POSTGRES_DB: jenkins-data
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # =================== FIX 1: HEALTHCHECK ===================
+    # This tells Docker to wait until the database is actually accepting
+    # commands before considering it "healthy" and starting dependent services.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jenkins -d jenkins-data"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Your Go Application Service
+  app:
+    build: .
+    restart: always
+    ports:
+      - "9090:9090"
+    environment:
+      DATABASE_URL: "postgres://jenkins:jenkins@db:5432/jenkins-data?sslmode=disable"
+      JENKINS_URL: "http://host.docker.internal:8080"
+      JENKINS_USER: "Priyanshi"      # <-- Change this!
+      JENKINS_TOKEN: "mb4uuvXm@1" # <-- Change this!
+    
+    # =================== FIX 2: EXTRA_HOSTS ===================
+    # This is required for Linux hosts to resolve host.docker.internal.
+    # It manually maps the hostname to the special 'host-gateway' IP.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      
+    # Now, `depends_on` will wait for the healthcheck to pass, not just for
+    # the container to start.
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
