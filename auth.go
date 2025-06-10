@@ -117,7 +117,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	log.Printf("User %s (ID: %d) logged in successfully", username, userID)
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, "/select-jenkins", http.StatusSeeOther)
 }
 
 // logoutHandler clears the session cookie and database record.

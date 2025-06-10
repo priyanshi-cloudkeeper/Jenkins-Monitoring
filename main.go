@@ -30,6 +30,11 @@ func main() {
 	// --- Protected Routes ---
 	protectedRouter := http.NewServeMux()
 
+	// NEW: Route for the Jenkins selection page after login
+	protectedRouter.HandleFunc("/select-jenkins", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "static/select-jenkins.html")
+	})
+
 	// Dashboard & Job List APIs
 	protectedRouter.HandleFunc("/api/jobs", jobsHandler)
 	protectedRouter.HandleFunc("/api/stats/summary", statsSummaryHandler)
