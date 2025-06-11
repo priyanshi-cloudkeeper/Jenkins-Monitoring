@@ -1,6 +1,7 @@
+/* FILE: static/style.css (Complete and Corrected) */
 
 :root {
-  /
+  /* Colors */
   --color-primary: #3498db;
   --color-primary-dark: #2980b9;
   --color-success: #4caf50;
@@ -70,7 +71,7 @@ a:hover { text-decoration: underline; }
 .panel-full-width { grid-column: 1 / -1; }
 
 /* ===== CONTROLS ===== */
-.controls__button { padding: var(--spacing-md) var(--spacing-lg); border: none; background-color: var(--color-primary); color: var(--bg-white); border-radius: var(--radius-md); cursor: pointer; font-weight: 700; font-size: 0.95rem; transition: all var(--transition-fast); text-transform: capitalize; }
+.controls__button { padding: var(--spacing-md) var(--spacing-lg); border: none; background-color: var(--color-primary); color: #ffffff; border-radius: var(--radius-md); cursor: pointer; font-weight: 700; font-size: 0.95rem; transition: all var(--transition-fast); text-transform: capitalize; }
 .controls__button:hover { background-color: var(--color-primary-dark); }
 .panel-controls .controls__button--small { padding: 3px 6px; font-size: 0.7rem; min-width: auto; margin-left: 5px; }
 .controls__search { padding: 3px 6px; font-size: 0.8rem; border-radius: var(--radius-sm); border: 1px solid #ccc; margin-right: 10px; line-height: 1.2; min-width: 150px; }
@@ -129,11 +130,50 @@ a:hover { text-decoration: underline; }
 
 /* ===== RESPONSIVE & DARK MODE ===== */
 @media (max-width: 992px) { .panel-large { grid-column: span 1; } }
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-text-primary: #e1e8ed; --color-text-secondary: #aab8c2; --color-text-muted: #8899a6;
-    --bg-primary: #15202b; --bg-white: #1e2732; --bg-hover: #273340; --bg-muted: #3d4852;
+    --color-text-primary: #e1e8ed;
+    --color-text-secondary: #aab8c2;
+    --color-text-muted: #8899a6;
+    --bg-primary: #15202b;
+    --bg-white: #1e2732;
+    --bg-hover: #273340;
+    --bg-muted: #3d4852;
   }
-  .job-detail-header, .panel-title, .data-list-item { border-color: var(--bg-muted); }
-  .controls__search, .form-group input { background-color: var(--bg-primary); border-color: var(--bg-muted); color: var(--color-text-primary); }
+  .job-detail-header, .panel-title, .data-list-item {
+    border-color: var(--bg-muted);
+  }
+  .controls__search, .form-group input {
+    background-color: var(--bg-primary);
+    border-color: var(--bg-muted);
+    color: var(--color-text-primary);
+  }
+
+  /* --- FIX FOR BUTTON VISIBILITY IN DARK MODE --- */
+  .controls__button {
+    /* Explicitly set colors for dark mode, ignoring the light-mode default */
+    background-color: var(--color-primary);
+    color: var(--color-text-primary); /* Use the main light text color */
+  }
+  .controls__button:hover {
+    background-color: var(--color-primary-dark);
+  }
+  
+  .header__actions .controls__button {
+    background-color: var(--color-error);
+    color: var(--color-text-primary);
+  }
+  .header__actions .controls__button:hover {
+    background-color: #c62828;
+  }
+  
+  .auth-button {
+      background-color: var(--color-primary);
+      color: var(--color-text-primary);
+  }
+  .auth-button:hover {
+      background-color: var(--color-primary-dark);
+  }
+  /* --- END FIX --- */
 }
