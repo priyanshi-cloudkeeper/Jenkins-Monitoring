@@ -25,9 +25,9 @@ services:
       - "9090:9090"
     environment:
       DATABASE_URL: "postgres://jenkins:jenkins@db:5432/jenkins-data?sslmode=disable"
-      JENKINS_URL: "http://host.docker.internal:8080"
-      JENKINS_USER: "Priyanshi"      # <-- Change this!
-      JENKINS_TOKEN: "mb4uuvXm@1" # <-- Change this!
+      JENKINS_URL: "https://finops-jenkins.ck.tothenew.net/"
+      JENKINS_USER: "amol.pandey@cloudkeeper.com"      # <-- Change this!
+      JENKINS_TOKEN: "1162ccb5f90ca6584d6ecb180a3626bc54" # <-- Change this!
     
 
     extra_hosts:
