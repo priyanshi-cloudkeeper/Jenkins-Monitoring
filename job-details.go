@@ -1,18 +1,14 @@
 package main
-
-//import "database/sql" // For sql.NullString if needed by any struct here
-
-// Build represents a single build of a Jenkins job.
 type Build struct {
-	Class     string         `json:"_class,omitempty"` // omitempty for fields that might not always be present
+	Class     string         `json:"_class,omitempty"` 
 	Number    int            `json:"number"`
 	URL       string         `json:"url"`
-	Result    *string        `json:"result,omitempty"`    // Jenkins API field: result (e.g., SUCCESS, FAILURE)
-	Timestamp int64          `json:"timestamp,omitempty"` // Jenkins API field: timestamp (milliseconds)
-	Duration  int64          `json:"duration,omitempty"`  // Jenkins API field: duration (milliseconds)
+	Result    *string        `json:"result,omitempty"`   
+	Timestamp int64          `json:"timestamp,omitempty"` 
+	Duration  int64          `json:"duration,omitempty"`  
 }
 
-// HealthReport describes the health status of a Jenkins job.
+
 type HealthReport struct {
 	Description   string `json:"description,omitempty"`
 	IconClassName string `json:"iconClassName,omitempty"`
@@ -20,11 +16,9 @@ type HealthReport struct {
 	Score         int    `json:"score,omitempty"`
 }
 
-// JobDetail represents the detailed structure from Jenkins API for a single job.
-// This is what the /job/{name}/api/json endpoint typically returns.
 type JobDetail struct {
 	Class               string         `json:"_class,omitempty"`
-	Actions             []interface{}  `json:"actions,omitempty"` // Can be more specific if needed
+	Actions             []interface{}  `json:"actions,omitempty"` 
 	Description         string         `json:"description,omitempty"`
 	DisplayName         string         `json:"displayName"`
 	DisplayNameOrNull   *string        `json:"displayNameOrNull"`
@@ -44,11 +38,11 @@ type JobDetail struct {
 	LastFailedBuild     *Build         `json:"lastFailedBuild,omitempty"`
 	LastStableBuild     *Build         `json:"lastStableBuild,omitempty"`
 	LastSuccessfulBuild *Build         `json:"lastSuccessfulBuild,omitempty"`
-	LastUnstableBuild   *Build         `json:"lastUnstableBuild,omitempty"` // Might be null
-	LastUnsuccessfulBuild *Build     `json:"lastUnsuccessfulBuild,omitempty"` // Might be null
+	LastUnstableBuild   *Build         `json:"lastUnstableBuild,omitempty"`
+	LastUnsuccessfulBuild *Build     `json:"lastUnsuccessfulBuild,omitempty"` 
 	NextBuildNumber     int            `json:"nextBuildNumber"`
-	Property            []interface{}  `json:"property,omitempty"` // Can be more specific
-	QueueItem           *string        `json:"queueItem"`          // Might be null
+	Property            []interface{}  `json:"property,omitempty"` 
+	QueueItem           *string        `json:"queueItem"`          
 	ConcurrentBuild     bool           `json:"concurrentBuild"`
 	ResumeBlocked       bool           `json:"resumeBlocked"`
 }

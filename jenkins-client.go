@@ -83,7 +83,6 @@ type RecentFailureAPIResponse struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
-// --- Helper Functions ---
 func mapColorToStatus(color string) string {
 	switch color {
 	case "blue":

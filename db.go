@@ -7,13 +7,11 @@ import (
 	"log"
 	"os"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq" // PostgreSQL driver
+	_ "github.com/lib/pq" 
 )
 
-var db *sql.DB // Keep db as a package-level variable
+var db *sql.DB 
 
-// initDB initializes the database connection and creates tables if they don't exist.
-// This function is called from main() in main.go
 func initDB() {
 	err1 := godotenv.Load()
 	if err1 != nil {
@@ -21,9 +19,8 @@ func initDB() {
 	}
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
-		//connStr = "postgres://jenkins:jenkins@localhost:5432/postgres?sslmode=disable"
 		log.Println("WARNING: DATABASE_URL environment variable not set.")
-		//log.Println("Example: postgres://youruser:yourpassword@yourhost:yourport/yourdatabase?sslmode=require")
+
 	}
 
 	var err error
@@ -41,7 +38,6 @@ func initDB() {
 	createTables()
 }
 
-// createTables creates the necessary database tables if they don't already exist.
 func createTables() {
 	usersTableSQL := `
 	CREATE TABLE IF NOT EXISTS users (

@@ -1,11 +1,10 @@
-// FILE: auth.go
 package main
 
 import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	// "fmt" // THIS LINE WAS REMOVED
+
 	"log"
 	"net/http"
 	"time"
@@ -16,8 +15,7 @@ import (
 const sessionCookieName = "jenkins_dashboard_session"
 const sessionDuration = 24 * time.Hour
 
-// signupHandler handles user registration.
-// GET shows the signup page, POST processes the registration.
+
 func signupHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		http.ServeFile(w, r, "static/signup.html")
@@ -46,7 +44,7 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = db.Exec("INSERT INTO users (username, password_hash) VALUES ($1, $2)", username, hashedPassword)
 	if err != nil {
-		// This will fail if the username is already taken due to the UNIQUE constraint
+	
 		log.Printf("Error inserting new user: %v", err)
 		http.Error(w, "Username already exists or server error", http.StatusConflict)
 		return
@@ -56,8 +54,6 @@ func signupHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-// loginHandler handles user login.
-// GET shows the login page, POST processes the login attempt.
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		http.ServeFile(w, r, "static/login.html")
@@ -120,22 +116,21 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/select-jenkins", http.StatusSeeOther)
 }
 
-// logoutHandler clears the session cookie and database record.
+
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil {
-		// No cookie, so nothing to do
+
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
-	// Delete the session from the database
 	_, err = db.Exec("DELETE FROM sessions WHERE token = $1", cookie.Value)
 	if err != nil {
 		log.Printf("Error deleting session from DB: %v", err)
 	}
 
-	// Expire the cookie in the browser
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
@@ -147,12 +142,11 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-// authMiddleware is a middleware that requires a valid session to access a route.
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(sessionCookieName)
 		if err != nil {
-			// No session cookie, redirect to login
+
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
@@ -163,22 +157,20 @@ func authMiddleware(next http.Handler) http.Handler {
 
 		err = db.QueryRow("SELECT user_id, expires_at FROM sessions WHERE token = $1", sessionToken).Scan(&userID, &expiresAt)
 		if err != nil || time.Now().After(expiresAt) {
-			// Invalid session or expired
 			if err != nil && err != sql.ErrNoRows {
 				log.Printf("Error validating session: %v", err)
 			}
-			// Clean up expired cookie and redirect
+
 			http.SetCookie(w, &http.Cookie{Name: sessionCookieName, Value: "", Expires: time.Unix(0, 0), Path: "/"})
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
 			return
 		}
 
-		// User is authenticated, proceed to the next handler
+
 		next.ServeHTTP(w, r)
 	})
 }
 
-// generateSessionToken creates a cryptographically secure random token.
 func generateSessionToken() (string, error) {
 	b := make([]byte, 32)
 	_, err := rand.Read(b)
