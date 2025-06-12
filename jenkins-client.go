@@ -83,6 +83,13 @@ type RecentFailureAPIResponse struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
+type RecentSuccessAPIResponse struct {
+	JobName     string    `json:"job_name"`
+	BuildNumber int       `json:"build_number"`
+	BuildURL    string    `json:"build_url"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
 func mapColorToStatus(color string) string {
 	switch color {
 	case "blue":
@@ -453,6 +460,39 @@ func recentFailuresHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(failures)
+}
+func recentSuccessesHandler(w http.ResponseWriter, r *http.Request) {
+	limit := 5
+	query := `
+		SELECT job_name, build_number, url, TO_TIMESTAMP("timestamp" / 1000) as build_time
+		FROM builds
+		WHERE result = 'SUCCESS'
+		ORDER BY "timestamp" DESC
+		LIMIT $1;
+	`
+	rows, err := db.Query(query, limit)
+	if err != nil {
+		log.Printf("recentSuccessesHandler: DB err: %v", err)
+		http.Error(w, "DB err", 500)
+		return
+	}
+	defer rows.Close()
+
+	var successes []RecentSuccessAPIResponse
+	for rows.Next() {
+		var s RecentSuccessAPIResponse
+		var buildTime sql.NullTime
+		if err := rows.Scan(&s.JobName, &s.BuildNumber, &s.BuildURL, &buildTime); err != nil {
+			log.Printf("recentSuccessesHandler: Scan err: %v", err)
+			continue
+		}
+		if buildTime.Valid {
+			s.Timestamp = buildTime.Time
+		}
+		successes = append(successes, s)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(successes)
 }
 
 

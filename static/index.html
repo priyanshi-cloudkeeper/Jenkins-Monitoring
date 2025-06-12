@@ -20,6 +20,7 @@
     </header>
 
     <main id="mainDashboardView" class="dashboard-grid">
+      <!-- Row 1: Key Stats & Overall Status -->
       <div class="panel panel-stat" id="panel-total-jobs">
         <h3 class="panel-title">Total Jobs</h3>
         <div class="panel-content stat-value" id="statTotalJobs">--</div>
@@ -38,16 +39,27 @@
           <canvas id="jobPieChart"></canvas>
         </div>
       </div>
+
+      <!-- Row 2: Time Series & Lists -->
       <div class="panel panel-chart panel-large" id="panel-build-history">
         <h3 class="panel-title">Build Throughput & Success (Last 7 Days)</h3>
         <div class="panel-content">
           <canvas id="buildHistoryChart"></canvas>
         </div>
       </div>
+
+      <!-- NEW: Panel for Recent Successful Builds -->
+      <div class="panel panel-list panel-full-width" id="panel-recent-successes">
+        <h3 class="panel-title">Recent Successful Builds</h3>
+        <ul id="listRecentSuccesses" class="data-list"><li>Loading...</li></ul>
+      </div>
+
       <div class="panel panel-list panel-full-width" id="panel-recent-failures">
         <h3 class="panel-title">Recent Failing Builds</h3>
-        <ul id="listRecentFailures" class="data-list"></ul>
+        <ul id="listRecentFailures" class="data-list"><li>Loading...</li></ul>
       </div>
+
+      <!-- Row 3: All Jobs Table Panel -->
       <div class="panel panel-list panel-full-width" id="panel-all-jobs-table">
         <h3 class="panel-title">
           All Jobs
@@ -72,47 +84,33 @@
       </div>
     </main>
 
-    <!-- NEW: Enhanced Job Detail View -->
+    <!-- Enhanced Job Detail View -->
     <section id="jobDetailView" class="details-section" style="display: none;">
       <button class="controls__button" onclick="hideJobDetail()"> ← Back to Dashboard</button>
-
+      
       <div class="job-detail-header">
-        <h2 id="detailJobName">Loading...</h2>
-        <div class="job-detail-actions">
-          <a id="detailJobURLExternal" href="#" target="_blank" class="controls__button controls__button--small">View on Jenkins</a>
-        </div>
+          <h2 id="detailJobName">Loading...</h2>
+          <div class="job-detail-actions">
+              <a id="detailJobURLExternal" href="#" target="_blank" class="controls__button controls__button--small">View on Jenkins</a>
+          </div>
       </div>
       <p id="detailJobDescription" class="job-description">Loading description...</p>
 
       <div class="dashboard-grid">
-        <div class="panel panel-stat">
-          <h3 class="panel-title">Success Rate (Last 30)</h3>
-          <div class="panel-content stat-value" id="kpiSuccessRate">--%</div>
-        </div>
-        <div class="panel panel-stat">
-          <h3 class="panel-title">Avg. Duration</h3>
-          <div class="panel-content stat-value" id="kpiAvgDuration">--s</div>
-        </div>
-        <div class="panel panel-stat">
-          <h3 class="panel-title">Time Since Success</h3>
-          <div class="panel-content stat-value" id="kpiTimeSinceSuccess">--</div>
-        </div>
-        <div class="panel panel-stat">
-          <h3 class="panel-title">Builds / Day</h3>
-          <div class="panel-content stat-value" id="kpiBuildFrequency">~ --</div>
-        </div>
+          <div class="panel panel-stat"><h3 class="panel-title">Success Rate (Last 30)</h3><div class="panel-content stat-value" id="kpiSuccessRate">--%</div></div>
+          <div class="panel panel-stat"><h3 class="panel-title">Avg. Duration</h3><div class="panel-content stat-value" id="kpiAvgDuration">--s</div></div>
+          <div class="panel panel-stat"><h3 class="panel-title">Time Since Success</h3><div class="panel-content stat-value" id="kpiTimeSinceSuccess">--</div></div>
+          <div class="panel panel-stat"><h3 class="panel-title">Builds / Day</h3><div class="panel-content stat-value" id="kpiBuildFrequency">~ --</div></div>
       </div>
 
       <div class="dashboard-grid">
-        <div class="panel panel-chart panel-large">
-          <h3 class="panel-title">Build Duration Trend (Last 30 Builds)</h3>
-          <div class="panel-content"><canvas id="durationChart"></canvas></div>
-        </div>
+          <div class="panel panel-chart panel-large"><h3 class="panel-title">Build Duration Trend (Last 30 Builds)</h3><div class="panel-content"><canvas id="durationChart"></canvas></div></div>
+          <div class="panel panel-chart panel-large"><h3 class="panel-title">Build Result History (Last 30 Builds)</h3><div class="panel-content"><canvas id="historyChart"></canvas></div></div>
       </div>
 
       <div class="panel panel-list panel-full-width">
-        <h3 class="panel-title">Recent Builds</h3>
-        <ul id="detailBuildList" class="job-list job-list--table-view"></ul>
+          <h3 class="panel-title">Recent Builds</h3>
+          <ul id="detailBuildList" class="job-list job-list--table-view"></ul>
       </div>
     </section>
 
@@ -249,11 +247,12 @@
         listEl.innerHTML = builds.map(build => {
             const statusClass = mapJobStatusToClassName(build.result);
             const buildStatus = (build.result || 'IN PROGRESS').toUpperCase();
+            const duration = build.duration ? `(${(build.duration / 1000).toFixed(1)}s)` : '';
             return `
                 <li class="job-card job-card--${statusClass}">
                     <div class="job-card__content">
                         <h3 class="job-card__name"><a href="${build.url}" target="_blank">Build #${build.number}</a></h3>
-                        <p class="job-card__meta">${formatDate(build.timestamp)} (${(build.duration/1000).toFixed(1)}s)</p>
+                        <p class="job-card__meta">${formatDate(build.timestamp)} ${duration}</p>
                     </div>
                     <span class="job-card__status job-card__status--${statusClass}">${buildStatus}</span>
                 </li>
@@ -311,6 +310,7 @@
             applyFiltersAndRender();
         } catch (err) {
             console.error("Error fetching jobs:", err);
+            document.getElementById('jobListTable').innerHTML = '<li>Error loading jobs.</li>';
         }
     }
 
@@ -324,6 +324,9 @@
             document.getElementById('statSuccessToday').textContent = `${data.success_rate_day.toFixed(1)}%`;
         } catch (err) {
             console.error("Error fetching stats:", err);
+            document.getElementById('statTotalJobs').textContent = 'Err';
+            document.getElementById('statActiveBuilds').textContent = 'Err';
+            document.getElementById('statSuccessToday').textContent = 'Err';
         }
     }
 
@@ -346,7 +349,30 @@
             `).join('');
         } catch (err) {
             console.error("Error fetching recent failures:", err);
+            listEl.innerHTML = '<li>Error loading data.</li>';
         }
+    }
+
+    async function fetchAndRenderRecentSuccesses() {
+      const listEl = document.getElementById('listRecentSuccesses');
+      listEl.innerHTML = '<li>Loading...</li>';
+      try {
+        const res = await fetch('/api/builds/recent-successes');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const successes = await res.json();
+        if (successes.length === 0) {
+          listEl.innerHTML = '<li>No recent successful builds found.</li>';
+          return;
+        }
+        listEl.innerHTML = successes.map(s => `
+            <li class="data-list-item">
+                <a href="${s.build_url}" target="_blank" title="${s.job_name} #${s.build_number}">${s.job_name} #${s.build_number}</a> 
+                <span class="timestamp">${formatDate(s.timestamp)}</span>
+            </li>`).join('');
+      } catch (err) {
+        console.error("Error fetching recent successes:", err);
+        listEl.innerHTML = '<li>Error loading data.</li>';
+      }
     }
 
     async function renderJobPieChart() {
@@ -364,7 +390,9 @@
                 labels: ['Success', 'Failure', 'Running', 'Disabled', 'Unstable', 'Unknown'],
                 datasets: [{
                     data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED, counts.UNSTABLE, counts.UNKNOWN],
-                    backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e', '#ffc107', '#777']
+                    backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e', '#ffc107', '#777'],
+                    borderColor: 'var(--bg-white)',
+                    borderWidth: 2
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
@@ -391,20 +419,21 @@
             });
         } catch (err) {
             console.error("Error rendering build history chart:", err);
+            document.getElementById('panel-build-history').querySelector('.panel-content').innerHTML = '<p class="error-text">Chart Err</p>';
         }
     }
 
-
+    // --- Initial Load ---
     async function initializeDashboard() {
         await fetchAllJobsForTable();
         fetchStatsSummary();
         renderJobPieChart();
         fetchAndRenderBuildHistoryChart();
         fetchAndRenderRecentFailures();
+        fetchAndRenderRecentSuccesses();
     }
 
     document.addEventListener('DOMContentLoaded', initializeDashboard);
   </script>
 </body>
-
 </html>
