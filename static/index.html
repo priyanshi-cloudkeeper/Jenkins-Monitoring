@@ -7,7 +7,8 @@
   <title>Jenkins Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 
 <body>
@@ -51,12 +52,16 @@
       <!-- NEW: Panel for Recent Successful Builds -->
       <div class="panel panel-list panel-full-width" id="panel-recent-successes">
         <h3 class="panel-title">Recent Successful Builds</h3>
-        <ul id="listRecentSuccesses" class="data-list"><li>Loading...</li></ul>
+        <ul id="listRecentSuccesses" class="data-list">
+          <li>Loading...</li>
+        </ul>
       </div>
 
       <div class="panel panel-list panel-full-width" id="panel-recent-failures">
         <h3 class="panel-title">Recent Failing Builds</h3>
-        <ul id="listRecentFailures" class="data-list"><li>Loading...</li></ul>
+        <ul id="listRecentFailures" class="data-list">
+          <li>Loading...</li>
+        </ul>
       </div>
 
       <!-- Row 3: All Jobs Table Panel -->
@@ -69,7 +74,8 @@
             <button class="controls__button controls__button--small" onclick="handleStatusFilter('ALL')">All</button>
             <button class="controls__button controls__button--small"
               onclick="handleStatusFilter('SUCCESS')">Success</button>
-            <button class="controls__button controls__button--small" onclick="handleStatusFilter('FAILURE')">Fail</button>
+            <button class="controls__button controls__button--small"
+              onclick="handleStatusFilter('FAILURE')">Fail</button>
             <button class="controls__button controls__button--small"
               onclick="handleStatusFilter('RUNNING')">Running</button>
             <button class="controls__button controls__button--small"
@@ -87,30 +93,45 @@
     <!-- Enhanced Job Detail View -->
     <section id="jobDetailView" class="details-section" style="display: none;">
       <button class="controls__button" onclick="hideJobDetail()"> ← Back to Dashboard</button>
-      
+
       <div class="job-detail-header">
-          <h2 id="detailJobName">Loading...</h2>
-          <div class="job-detail-actions">
-              <a id="detailJobURLExternal" href="#" target="_blank" class="controls__button controls__button--small">View on Jenkins</a>
-          </div>
+        <h2 id="detailJobName">Loading...</h2>
+        <div class="job-detail-actions">
+          <a id="detailJobURLExternal" href="#" target="_blank" class="controls__button controls__button--small">View on
+            Jenkins</a>
+        </div>
       </div>
       <p id="detailJobDescription" class="job-description">Loading description...</p>
 
       <div class="dashboard-grid">
-          <div class="panel panel-stat"><h3 class="panel-title">Success Rate (Last 30)</h3><div class="panel-content stat-value" id="kpiSuccessRate">--%</div></div>
-          <div class="panel panel-stat"><h3 class="panel-title">Avg. Duration</h3><div class="panel-content stat-value" id="kpiAvgDuration">--s</div></div>
-          <div class="panel panel-stat"><h3 class="panel-title">Time Since Success</h3><div class="panel-content stat-value" id="kpiTimeSinceSuccess">--</div></div>
-          <div class="panel panel-stat"><h3 class="panel-title">Builds / Day</h3><div class="panel-content stat-value" id="kpiBuildFrequency">~ --</div></div>
+        <div class="panel panel-stat">
+          <h3 class="panel-title">Success Rate (Last 30)</h3>
+          <div class="panel-content stat-value" id="kpiSuccessRate">--%</div>
+        </div>
+        <div class="panel panel-stat">
+          <h3 class="panel-title">Avg. Duration</h3>
+          <div class="panel-content stat-value" id="kpiAvgDuration">--s</div>
+        </div>
+        <div class="panel panel-stat">
+          <h3 class="panel-title">Time Since Success</h3>
+          <div class="panel-content stat-value" id="kpiTimeSinceSuccess">--</div>
+        </div>
+        <div class="panel panel-stat">
+          <h3 class="panel-title">Builds / Day</h3>
+          <div class="panel-content stat-value" id="kpiBuildFrequency">~ --</div>
+        </div>
       </div>
 
       <div class="dashboard-grid">
-          <div class="panel panel-chart panel-large"><h3 class="panel-title">Build Duration Trend (Last 30 Builds)</h3><div class="panel-content"><canvas id="durationChart"></canvas></div></div>
-          <div class="panel panel-chart panel-large"><h3 class="panel-title">Build Result History (Last 30 Builds)</h3><div class="panel-content"><canvas id="historyChart"></canvas></div></div>
+        <div class="panel panel-chart panel-large">
+          <h3 class="panel-title">Build Duration Trend (Last 30 Builds)</h3>
+          <div class="panel-content"><canvas id="durationChart"></canvas></div>
+        </div>
       </div>
 
       <div class="panel panel-list panel-full-width">
-          <h3 class="panel-title">Recent Builds</h3>
-          <ul id="detailBuildList" class="job-list job-list--table-view"></ul>
+        <h3 class="panel-title">Recent Builds</h3>
+        <ul id="detailBuildList" class="job-list job-list--table-view"></ul>
       </div>
     </section>
 
@@ -130,125 +151,125 @@
     // --- Utility Functions ---
     const formatStat = (value, defaultValue = '--') => (value !== undefined && value !== null) ? value : defaultValue;
     const formatDate = (dateStringOrTimestamp) => {
-        if (!dateStringOrTimestamp) return 'N/A';
-        const date = new Date(dateStringOrTimestamp);
-        return date.toLocaleString();
+      if (!dateStringOrTimestamp) return 'N/A';
+      const date = new Date(dateStringOrTimestamp);
+      return date.toLocaleString();
     };
     const mapJobStatusToClassName = (status) => {
-        const s = (status || 'unknown').toLowerCase();
-        return ['success', 'failure', 'running', 'disabled', 'unstable'].includes(s) ? s : 'unknown';
+      const s = (status || 'unknown').toLowerCase();
+      return ['success', 'failure', 'running', 'disabled', 'unstable'].includes(s) ? s : 'unknown';
     };
 
     // --- Job Detail View ---
     async function showJobDetailView(jobName) {
-        mainDashboardViewEl.style.display = 'none';
-        jobDetailViewEl.style.display = 'block';
+      mainDashboardViewEl.style.display = 'none';
+      jobDetailViewEl.style.display = 'block';
 
-        // Reset view
-        document.getElementById('detailJobName').textContent = `Loading ${jobName}...`;
-        document.getElementById('detailJobDescription').textContent = 'Loading...';
-        ['kpiSuccessRate', 'kpiAvgDuration', 'kpiTimeSinceSuccess', 'kpiBuildFrequency'].forEach(id => {
-            document.getElementById(id).textContent = '--';
-        });
-        if (durationChartInstance) durationChartInstance.destroy();
-        if (historyChartInstance) historyChartInstance.destroy();
+      // Reset view
+      document.getElementById('detailJobName').textContent = `Loading ${jobName}...`;
+      document.getElementById('detailJobDescription').textContent = 'Loading...';
+      ['kpiSuccessRate', 'kpiAvgDuration', 'kpiTimeSinceSuccess', 'kpiBuildFrequency'].forEach(id => {
+        document.getElementById(id).textContent = '--';
+      });
+      if (durationChartInstance) durationChartInstance.destroy();
+      if (historyChartInstance) historyChartInstance.destroy();
 
-        // Fetch 1: Basic static details
-        try {
-            const res = await fetch(`/api/job-details?name=${encodeURIComponent(jobName)}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-            const jobData = await res.json();
-            document.getElementById('detailJobName').textContent = jobData.displayName || jobData.name;
-            document.getElementById('detailJobURLExternal').href = jobData.url;
-            document.getElementById('detailJobDescription').textContent = jobData.description || 'No description provided.';
-            renderBuildsForDetailView(jobData.builds);
-        } catch (err) {
-            document.getElementById('detailJobName').textContent = `Error loading ${jobName}`;
-            console.error("Error fetching basic job detail:", err);
-        }
+      // Fetch 1: Basic static details
+      try {
+        const res = await fetch(`/api/job-details?name=${encodeURIComponent(jobName)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+        const jobData = await res.json();
+        document.getElementById('detailJobName').textContent = jobData.displayName || jobData.name;
+        document.getElementById('detailJobURLExternal').href = jobData.url;
+        document.getElementById('detailJobDescription').textContent = jobData.description || 'No description provided.';
+        renderBuildsForDetailView(jobData.builds);
+      } catch (err) {
+        document.getElementById('detailJobName').textContent = `Error loading ${jobName}`;
+        console.error("Error fetching basic job detail:", err);
+      }
 
-        // Fetch 2: Detailed analysis for metrics and charts
-        try {
-            const analysisRes = await fetch(`/api/job-analysis?name=${encodeURIComponent(jobName)}`);
-            if (!analysisRes.ok) throw new Error(`HTTP ${analysisRes.status}: ${await analysisRes.text()}`);
-            const analysisData = await analysisRes.json();
+      // Fetch 2: Detailed analysis for metrics and charts
+      try {
+        const analysisRes = await fetch(`/api/job-analysis?name=${encodeURIComponent(jobName)}`);
+        if (!analysisRes.ok) throw new Error(`HTTP ${analysisRes.status}: ${await analysisRes.text()}`);
+        const analysisData = await analysisRes.json();
 
-            document.getElementById('kpiSuccessRate').textContent = `${analysisData.success_rate_30.toFixed(1)}%`;
-            document.getElementById('kpiAvgDuration').textContent = `${analysisData.avg_duration_seconds_30.toFixed(0)}s`;
-            document.getElementById('kpiTimeSinceSuccess').textContent = analysisData.time_since_last_success;
-            document.getElementById('kpiBuildFrequency').textContent = `~${analysisData.build_frequency.toFixed(1)}`;
+        document.getElementById('kpiSuccessRate').textContent = `${analysisData.success_rate_30.toFixed(1)}%`;
+        document.getElementById('kpiAvgDuration').textContent = `${analysisData.avg_duration_seconds_30.toFixed(0)}s`;
+        document.getElementById('kpiTimeSinceSuccess').textContent = analysisData.time_since_last_success;
+        document.getElementById('kpiBuildFrequency').textContent = `~${analysisData.build_frequency.toFixed(1)}`;
 
-            const buildsForCharts = analysisData.builds_for_charts.slice().reverse(); // reverse for chronological order
-            renderDurationChart(buildsForCharts);
-            renderHistoryChart(buildsForCharts);
+        const buildsForCharts = analysisData.builds_for_charts.slice().reverse(); // reverse for chronological order
+        renderDurationChart(buildsForCharts);
+        renderHistoryChart(buildsForCharts);
 
-        } catch (err) {
-            console.error("Error fetching job analysis:", err);
-        }
+      } catch (err) {
+        console.error("Error fetching job analysis:", err);
+      }
     }
 
     function hideJobDetail() {
-        jobDetailViewEl.style.display = 'none';
-        mainDashboardViewEl.style.display = 'grid';
+      jobDetailViewEl.style.display = 'none';
+      mainDashboardViewEl.style.display = 'grid';
     }
 
     function renderDurationChart(builds) {
-        const ctx = document.getElementById('durationChart').getContext('2d');
-        if (durationChartInstance) durationChartInstance.destroy();
-        durationChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: builds.map(b => `#${b.number}`),
-                datasets: [{
-                    label: 'Duration (s)',
-                    data: builds.map(b => b.duration / 1000),
-                    borderColor: 'var(--color-primary)',
-                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                    fill: true,
-                    tension: 0.1
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+      const ctx = document.getElementById('durationChart').getContext('2d');
+      if (durationChartInstance) durationChartInstance.destroy();
+      durationChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: builds.map(b => `#${b.number}`),
+          datasets: [{
+            label: 'Duration (s)',
+            data: builds.map(b => b.duration / 1000),
+            borderColor: 'var(--color-primary)',
+            backgroundColor: 'rgba(52, 152, 219, 0.2)',
+            fill: true,
+            tension: 0.1
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
     }
 
     function renderHistoryChart(builds) {
-        const ctx = document.getElementById('historyChart').getContext('2d');
-        if (historyChartInstance) historyChartInstance.destroy();
-        historyChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: builds.map(b => `#${b.number}`),
-                datasets: [{
-                    label: 'Result',
-                    data: builds.map(() => 1),
-                    backgroundColor: builds.map(b => {
-                        if (b.result === 'SUCCESS') return 'var(--color-success)';
-                        if (b.result === 'FAILURE') return 'var(--color-error)';
-                        return '#ffc107'; // UNSTABLE
-                    })
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { display: false }, x: { ticks: { maxRotation: 90, minRotation: 45 } } },
-                plugins: { legend: { display: false } }
-            }
-        });
+      const ctx = document.getElementById('historyChart').getContext('2d');
+      if (historyChartInstance) historyChartInstance.destroy();
+      historyChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: builds.map(b => `#${b.number}`),
+          datasets: [{
+            label: 'Result',
+            data: builds.map(() => 1),
+            backgroundColor: builds.map(b => {
+              if (b.result === 'SUCCESS') return 'var(--color-success)';
+              if (b.result === 'FAILURE') return 'var(--color-error)';
+              return '#ffc107'; // UNSTABLE
+            })
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { display: false }, x: { ticks: { maxRotation: 90, minRotation: 45 } } },
+          plugins: { legend: { display: false } }
+        }
+      });
     }
 
     function renderBuildsForDetailView(builds) {
-        const listEl = document.getElementById('detailBuildList');
-        if (!builds || builds.length === 0) {
-            listEl.innerHTML = '<li class="job-card job-card--disabled"><div class="job-card__content"><h3>No build data available.</h3></div></li>';
-            return;
-        }
-        listEl.innerHTML = builds.map(build => {
-            const statusClass = mapJobStatusToClassName(build.result);
-            const buildStatus = (build.result || 'IN PROGRESS').toUpperCase();
-            const duration = build.duration ? `(${(build.duration / 1000).toFixed(1)}s)` : '';
-            return `
+      const listEl = document.getElementById('detailBuildList');
+      if (!builds || builds.length === 0) {
+        listEl.innerHTML = '<li class="job-card job-card--disabled"><div class="job-card__content"><h3>No build data available.</h3></div></li>';
+        return;
+      }
+      listEl.innerHTML = builds.map(build => {
+        const statusClass = mapJobStatusToClassName(build.result);
+        const buildStatus = (build.result || 'IN PROGRESS').toUpperCase();
+        const duration = build.duration ? `(${(build.duration / 1000).toFixed(1)}s)` : '';
+        return `
                 <li class="job-card job-card--${statusClass}">
                     <div class="job-card__content">
                         <h3 class="job-card__name"><a href="${build.url}" target="_blank">Build #${build.number}</a></h3>
@@ -257,40 +278,40 @@
                     <span class="job-card__status job-card__status--${statusClass}">${buildStatus}</span>
                 </li>
             `;
-        }).join('');
+      }).join('');
     }
 
     // --- Main Dashboard Functions ---
     function handleStatusFilter(status) {
-        currentStatusFilter = status;
-        applyFiltersAndRender();
+      currentStatusFilter = status;
+      applyFiltersAndRender();
     }
 
     function applyFiltersAndRender() {
-        const searchTerm = document.getElementById('jobSearchInput').value.trim().toLowerCase();
-        let filteredJobs = allJobsDataCache;
+      const searchTerm = document.getElementById('jobSearchInput').value.trim().toLowerCase();
+      let filteredJobs = allJobsDataCache;
 
-        if (currentStatusFilter !== 'ALL') {
-            filteredJobs = filteredJobs.filter(j => j.status === currentStatusFilter);
-        }
-        if (searchTerm) {
-            filteredJobs = filteredJobs.filter(j => j.name.toLowerCase().includes(searchTerm));
-        }
-        renderJobsTable(filteredJobs);
+      if (currentStatusFilter !== 'ALL') {
+        filteredJobs = filteredJobs.filter(j => j.status === currentStatusFilter);
+      }
+      if (searchTerm) {
+        filteredJobs = filteredJobs.filter(j => j.name.toLowerCase().includes(searchTerm));
+      }
+      renderJobsTable(filteredJobs);
     }
 
     function renderJobsTable(jobs) {
-        const listEl = document.getElementById('jobListTable');
-        if (!jobs || jobs.length === 0) {
-            listEl.innerHTML = '<li class="job-card job-card--disabled"><div class="job-card__content"><h3>No jobs match filter.</h3></div></li>';
-            return;
-        }
-        listEl.innerHTML = jobs.map(job => {
-            const statusClass = mapJobStatusToClassName(job.status);
-            const lastBuild = job.last_build_number
-                ? `#${job.last_build_number} - ${job.last_build_result || 'UNKNOWN'} (${formatDate(job.last_build_time)})`
-                : 'N/A';
-            return `
+      const listEl = document.getElementById('jobListTable');
+      if (!jobs || jobs.length === 0) {
+        listEl.innerHTML = '<li class="job-card job-card--disabled"><div class="job-card__content"><h3>No jobs match filter.</h3></div></li>';
+        return;
+      }
+      listEl.innerHTML = jobs.map(job => {
+        const statusClass = mapJobStatusToClassName(job.status);
+        const lastBuild = job.last_build_number
+          ? `#${job.last_build_number} - ${job.last_build_result || 'UNKNOWN'} (${formatDate(job.last_build_time)})`
+          : 'N/A';
+        return `
                 <li class="job-card job-card--${statusClass}" onclick="showJobDetailView('${job.name}')">
                     <div class="job-card__content">
                         <h3 class="job-card__name"><a href="${job.url}" target="_blank" onclick="event.stopPropagation()">${job.name}</a></h3>
@@ -299,58 +320,58 @@
                     <span class="job-card__status job-card__status--${statusClass}">${job.status || 'UNKNOWN'}</span>
                 </li>
             `;
-        }).join('');
+      }).join('');
     }
 
     async function fetchAllJobsForTable() {
-        try {
-            const res = await fetch('/api/jobs');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            allJobsDataCache = await res.json() || [];
-            applyFiltersAndRender();
-        } catch (err) {
-            console.error("Error fetching jobs:", err);
-            document.getElementById('jobListTable').innerHTML = '<li>Error loading jobs.</li>';
-        }
+      try {
+        const res = await fetch('/api/jobs');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        allJobsDataCache = await res.json() || [];
+        applyFiltersAndRender();
+      } catch (err) {
+        console.error("Error fetching jobs:", err);
+        document.getElementById('jobListTable').innerHTML = '<li>Error loading jobs.</li>';
+      }
     }
 
     async function fetchStatsSummary() {
-        try {
-            const res = await fetch('/api/stats/summary');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            document.getElementById('statTotalJobs').textContent = formatStat(data.total_jobs);
-            document.getElementById('statActiveBuilds').textContent = formatStat(data.running_jobs);
-            document.getElementById('statSuccessToday').textContent = `${data.success_rate_day.toFixed(1)}%`;
-        } catch (err) {
-            console.error("Error fetching stats:", err);
-            document.getElementById('statTotalJobs').textContent = 'Err';
-            document.getElementById('statActiveBuilds').textContent = 'Err';
-            document.getElementById('statSuccessToday').textContent = 'Err';
-        }
+      try {
+        const res = await fetch('/api/stats/summary');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        document.getElementById('statTotalJobs').textContent = formatStat(data.total_jobs);
+        document.getElementById('statActiveBuilds').textContent = formatStat(data.running_jobs);
+        document.getElementById('statSuccessToday').textContent = `${data.success_rate_day.toFixed(1)}%`;
+      } catch (err) {
+        console.error("Error fetching stats:", err);
+        document.getElementById('statTotalJobs').textContent = 'Err';
+        document.getElementById('statActiveBuilds').textContent = 'Err';
+        document.getElementById('statSuccessToday').textContent = 'Err';
+      }
     }
 
     async function fetchAndRenderRecentFailures() {
-        const listEl = document.getElementById('listRecentFailures');
-        listEl.innerHTML = '<li>Loading...</li>';
-        try {
-            const res = await fetch('/api/builds/recent-failures');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const failures = await res.json();
-            if (failures.length === 0) {
-                listEl.innerHTML = '<li>No recent failures. Great job!</li>';
-                return;
-            }
-            listEl.innerHTML = failures.map(f => `
+      const listEl = document.getElementById('listRecentFailures');
+      listEl.innerHTML = '<li>Loading...</li>';
+      try {
+        const res = await fetch('/api/builds/recent-failures');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const failures = await res.json();
+        if (failures.length === 0) {
+          listEl.innerHTML = '<li>No recent failures. Great job!</li>';
+          return;
+        }
+        listEl.innerHTML = failures.map(f => `
                 <li class="data-list-item">
                     <a href="${f.build_url}" target="_blank" title="${f.job_name} #${f.build_number}">${f.job_name} #${f.build_number}</a> 
                     <span class="timestamp">${formatDate(f.timestamp)}</span>
                 </li>
             `).join('');
-        } catch (err) {
-            console.error("Error fetching recent failures:", err);
-            listEl.innerHTML = '<li>Error loading data.</li>';
-        }
+      } catch (err) {
+        console.error("Error fetching recent failures:", err);
+        listEl.innerHTML = '<li>Error loading data.</li>';
+      }
     }
 
     async function fetchAndRenderRecentSuccesses() {
@@ -376,64 +397,65 @@
     }
 
     async function renderJobPieChart() {
-        const counts = allJobsDataCache.reduce((acc, job) => {
-            const status = job.status || 'UNKNOWN';
-            acc[status] = (acc[status] || 0) + 1;
-            return acc;
-        }, { SUCCESS: 0, FAILURE: 0, RUNNING: 0, DISABLED: 0, UNSTABLE: 0, UNKNOWN: 0 });
+      const counts = allJobsDataCache.reduce((acc, job) => {
+        const status = job.status || 'UNKNOWN';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, { SUCCESS: 0, FAILURE: 0, RUNNING: 0, DISABLED: 0, UNSTABLE: 0, UNKNOWN: 0 });
 
-        const ctx = document.getElementById('jobPieChart').getContext('2d');
-        if (jobPieChartInstance) jobPieChartInstance.destroy();
-        jobPieChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Success', 'Failure', 'Running', 'Disabled', 'Unstable', 'Unknown'],
-                datasets: [{
-                    data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED, counts.UNSTABLE, counts.UNKNOWN],
-                    backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e', '#ffc107', '#777'],
-                    borderColor: 'var(--bg-white)',
-                    borderWidth: 2
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-        });
+      const ctx = document.getElementById('jobPieChart').getContext('2d');
+      if (jobPieChartInstance) jobPieChartInstance.destroy();
+      jobPieChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Success', 'Failure', 'Running', 'Disabled', 'Unstable', 'Unknown'],
+          datasets: [{
+            data: [counts.SUCCESS, counts.FAILURE, counts.RUNNING, counts.DISABLED, counts.UNSTABLE, counts.UNKNOWN],
+            backgroundColor: ['#4caf50', '#f44336', '#2196f3', '#9e9e9e', '#ffc107', '#777'],
+            borderColor: 'var(--bg-white)',
+            borderWidth: 2
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+      });
     }
 
     async function fetchAndRenderBuildHistoryChart() {
-        try {
-            const res = await fetch('/api/stats/build-history?range=7');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            const ctx = document.getElementById('buildHistoryChart').getContext('2d');
-            if (buildHistoryChartInstance) buildHistoryChartInstance.destroy();
-            buildHistoryChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.map(d => d.date),
-                    datasets: [
-                        { label: 'Successful', data: data.map(d => d.successful_builds), backgroundColor: 'rgba(76, 175, 80, 0.7)', stack: 'builds' },
-                        { label: 'Failed', data: data.map(d => d.failed_builds), backgroundColor: 'rgba(244, 67, 54, 0.7)', stack: 'builds' }
-                    ]
-                },
-                options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'day' } }, y: { stacked: true } } }
-            });
-        } catch (err) {
-            console.error("Error rendering build history chart:", err);
-            document.getElementById('panel-build-history').querySelector('.panel-content').innerHTML = '<p class="error-text">Chart Err</p>';
-        }
+      try {
+        const res = await fetch('/api/stats/build-history?range=7');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const ctx = document.getElementById('buildHistoryChart').getContext('2d');
+        if (buildHistoryChartInstance) buildHistoryChartInstance.destroy();
+        buildHistoryChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.map(d => d.date),
+            datasets: [
+              { label: 'Successful', data: data.map(d => d.successful_builds), backgroundColor: 'rgba(76, 175, 80, 0.7)', stack: 'builds' },
+              { label: 'Failed', data: data.map(d => d.failed_builds), backgroundColor: 'rgba(244, 67, 54, 0.7)', stack: 'builds' }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'day' } }, y: { stacked: true } } }
+        });
+      } catch (err) {
+        console.error("Error rendering build history chart:", err);
+        document.getElementById('panel-build-history').querySelector('.panel-content').innerHTML = '<p class="error-text">Chart Err</p>';
+      }
     }
 
     // --- Initial Load ---
     async function initializeDashboard() {
-        await fetchAllJobsForTable();
-        fetchStatsSummary();
-        renderJobPieChart();
-        fetchAndRenderBuildHistoryChart();
-        fetchAndRenderRecentFailures();
-        fetchAndRenderRecentSuccesses();
+      await fetchAllJobsForTable();
+      fetchStatsSummary();
+      renderJobPieChart();
+      fetchAndRenderBuildHistoryChart();
+      fetchAndRenderRecentFailures();
+      fetchAndRenderRecentSuccesses();
     }
 
     document.addEventListener('DOMContentLoaded', initializeDashboard);
   </script>
 </body>
+
 </html>
