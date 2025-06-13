@@ -45,6 +45,7 @@ func main() {
 	protectedRouter.HandleFunc("/api/job-details", jobDetailsFromDBHandler)
 	protectedRouter.HandleFunc("/api/job-analysis", jobAnalysisHandler)
 	protectedRouter.HandleFunc("/api/job", originalJobDetailHandlerFromJenkins)
+	protectedRouter.HandleFunc("/api/build/console", buildConsoleOutputHandler)	
 
 	// Serve the main application
 	protectedRouter.Handle("/", http.FileServer(http.Dir("./static")))

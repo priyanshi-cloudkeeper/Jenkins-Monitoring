@@ -604,3 +604,50 @@ func performFullRefresh() {
 func originalJobDetailHandlerFromJenkins(w http.ResponseWriter, r *http.Request) {
     // This handler remains for potential direct Jenkins API passthrough if needed
 }
+func buildConsoleOutputHandler(w http.ResponseWriter, r *http.Request) {
+	jobName := r.URL.Query().Get("job_name")
+	buildNumber := r.URL.Query().Get("build_number")
+
+	if jobName == "" || buildNumber == "" {
+		http.Error(w, "Missing job_name or build_number", http.StatusBadRequest)
+		return
+	}
+
+	if jenkinsURL == "" {
+		http.Error(w, "Jenkins URL not configured", http.StatusInternalServerError)
+		return
+	}
+
+	fetchURL := fmt.Sprintf("%s/job/%s/%s/consoleText", jenkinsURL, jobName, buildNumber)
+	log.Printf("Proxying console output request to: %s", fetchURL)
+
+	req, err := http.NewRequest("GET", fetchURL, nil)
+	if err != nil {
+		log.Printf("Error creating console request for %s #%s: %v", jobName, buildNumber, err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	if jenkinsUser != "" && jenkinsToken != "" {
+		req.SetBasicAuth(jenkinsUser, jenkinsToken)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error fetching console output from Jenkins for %s #%s: %v", jobName, buildNumber, err)
+		http.Error(w, "Failed to fetch console output from Jenkins", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Jenkins returned non-OK status for console output: %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		http.Error(w, fmt.Sprintf("Jenkins error: %s", string(bodyBytes)), resp.StatusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	io.Copy(w, resp.Body)
+}

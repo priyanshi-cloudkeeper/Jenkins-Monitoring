@@ -133,6 +133,17 @@
         <h3 class="panel-title">Recent Builds</h3>
         <ul id="detailBuildList" class="job-list job-list--table-view"></ul>
       </div>
+
+      <!-- NEW: Console Output Modal -->
+      <div id="consoleOutputModal" class="console-modal" style="display: none;">
+        <div class="console-modal-content">
+          <div class="console-modal-header">
+            <h3 id="consoleModalTitle">Console Output</h3>
+            <button class="console-modal-close" onclick="hideConsoleOutput()">×</button>
+          </div>
+          <pre id="consoleOutputContent">Loading...</pre>
+        </div>
+      </div>
     </section>
 
   </div>
@@ -147,6 +158,9 @@
     // --- DOM Elements ---
     const mainDashboardViewEl = document.getElementById('mainDashboardView');
     const jobDetailViewEl = document.getElementById('jobDetailView');
+    const consoleModalEl = document.getElementById('consoleOutputModal');
+    const consoleContentEl = document.getElementById('consoleOutputContent');
+    const consoleTitleEl = document.getElementById('consoleModalTitle');
 
     // --- Utility Functions ---
     const formatStat = (value, defaultValue = '--') => (value !== undefined && value !== null) ? value : defaultValue;
@@ -182,7 +196,7 @@
         document.getElementById('detailJobName').textContent = jobData.displayName || jobData.name;
         document.getElementById('detailJobURLExternal').href = jobData.url;
         document.getElementById('detailJobDescription').textContent = jobData.description || 'No description provided.';
-        renderBuildsForDetailView(jobData.builds);
+        renderBuildsForDetailView(jobData.name, jobData.builds);
       } catch (err) {
         document.getElementById('detailJobName').textContent = `Error loading ${jobName}`;
         console.error("Error fetching basic job detail:", err);
@@ -259,7 +273,7 @@
       });
     }
 
-    function renderBuildsForDetailView(builds) {
+    function renderBuildsForDetailView(jobName, builds) {
       const listEl = document.getElementById('detailBuildList');
       if (!builds || builds.length === 0) {
         listEl.innerHTML = '<li class="job-card job-card--disabled"><div class="job-card__content"><h3>No build data available.</h3></div></li>';
@@ -269,16 +283,46 @@
         const statusClass = mapJobStatusToClassName(build.result);
         const buildStatus = (build.result || 'IN PROGRESS').toUpperCase();
         const duration = build.duration ? `(${(build.duration / 1000).toFixed(1)}s)` : '';
+        
+        const consoleButton = build.result === 'FAILURE'
+          ? `<button class="controls__button controls__button--small controls__button--danger" onclick="event.stopPropagation(); showConsoleOutput('${jobName}', ${build.number})">View Log</button>`
+          : '';
+
         return `
                 <li class="job-card job-card--${statusClass}">
                     <div class="job-card__content">
                         <h3 class="job-card__name"><a href="${build.url}" target="_blank">Build #${build.number}</a></h3>
                         <p class="job-card__meta">${formatDate(build.timestamp)} ${duration}</p>
                     </div>
+                    <div class="job-card__actions">
+                        ${consoleButton}
+                    </div>
                     <span class="job-card__status job-card__status--${statusClass}">${buildStatus}</span>
                 </li>
             `;
       }).join('');
+    }
+
+    // --- Console Output Functions ---
+    async function showConsoleOutput(jobName, buildNumber) {
+      consoleModalEl.style.display = 'block';
+      consoleContentEl.textContent = 'Loading console output...';
+      consoleTitleEl.textContent = `Console Output for ${jobName} #${buildNumber}`;
+      try {
+        const res = await fetch(`/api/build/console?job_name=${encodeURIComponent(jobName)}&build_number=${buildNumber}`);
+        if (!res.ok) {
+            throw new Error(`Server returned ${res.status}: ${await res.text()}`);
+        }
+        const logText = await res.text();
+        consoleContentEl.textContent = logText;
+      } catch (err) {
+        console.error("Failed to fetch console output:", err);
+        consoleContentEl.textContent = `Error loading console output.\n\n${err.message}`;
+      }
+    }
+
+    function hideConsoleOutput() {
+      consoleModalEl.style.display = 'none';
     }
 
     // --- Main Dashboard Functions ---
